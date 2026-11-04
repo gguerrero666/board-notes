@@ -21,10 +21,18 @@ public class Note {
     @Schema(description = "Texto de la nota. Opcional", example = "Entera, 2 litros", nullable = true)
     @Column(length = 1000)
     private String text;
+    @Schema(description = "Posición horizontal en píxeles. Nula mientras la nota no se haya movido", example = "120", nullable = true)
+    private Integer x;
+    @Schema(description = "Posición vertical en píxeles. Nula mientras la nota no se haya movido", example = "80", nullable = true)
+    private Integer y;
 
     public Long getId() { return id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
+    public Integer getX() { return x; }
+    public Integer getY() { return y; }
+    public void setX(Integer x) { this.x = x; }
+    public void setY(Integer y) { this.y = y; }
 }

@@ -10,14 +10,17 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@Tag(name = "Notas", description = "Crear y listar las notas del board")
+@Tag(name = "Notas", description = "Crear, listar y mover las notas del board")
 @RequestMapping("/api/notes")
 public class NoteController {
 
@@ -43,6 +46,19 @@ public class NoteController {
         Note note = new Note();
         note.setTitle(request.title().trim());
         note.setText(request.text());
+        return repository.save(note);
+    }
+
+    @PatchMapping("/{id}/position")
+    @Operation(summary = "Mover nota", description = "Guarda la posición (x, y, en píxeles) de una nota. Solo cambia la posición: el título y el texto no se modifican. Ambas coordenadas son obligatorias y deben estar entre 0 y 100000.")
+    @ApiResponse(responseCode = "200", description = "Nota con su posición actualizada")
+    @ApiResponse(responseCode = "400", description = "Coordenada ausente, negativa o mayor a 100000", content = @Content)
+    @ApiResponse(responseCode = "404", description = "No existe una nota con ese id", content = @Content)
+    public Note updatePosition(@PathVariable Long id, @Valid @RequestBody PositionRequest request) {
+        Note note = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        note.setX(request.x());
+        note.setY(request.y());
         return repository.save(note);
     }
 }

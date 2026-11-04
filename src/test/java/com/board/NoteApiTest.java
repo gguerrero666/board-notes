@@ -13,7 +13,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -166,6 +168,138 @@ class NoteApiTest {
 
         mockMvc.perform(get("/api/notes"))
                 .andExpect(jsonPath("$[0].text").value(texto));
+    }
+
+    @Test
+    void unaNotaRecienCreadaNoTienePosicion() throws Exception {
+        mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Sin mover\",\"text\":\"a\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.x").value(nullValue()))
+                .andExpect(jsonPath("$.y").value(nullValue()));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].x").value(nullValue()))
+                .andExpect(jsonPath("$[0].y").value(nullValue()));
+    }
+
+    @Test
+    void actualizarLaPosicionDevuelve200ConLaPosicionNuevaYElListadoLaIncluye() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Mover\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(patch("/api/notes/" + id + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":120,\"y\":80}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.x").value(120))
+                .andExpect(jsonPath("$.y").value(80));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].x").value(120))
+                .andExpect(jsonPath("$[0].y").value(80));
+    }
+
+    @Test
+    void actualizarLaPosicionNoCambiaTituloTextoNiLaPosicionDeOtrasNotas() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Movida\",\"text\":\"Texto movida\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+        crear("Quieta", "Texto quieta");
+
+        mockMvc.perform(patch("/api/notes/" + id + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":300,\"y\":40}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Movida"))
+                .andExpect(jsonPath("$.text").value("Texto movida"));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].title").value("Movida"))
+                .andExpect(jsonPath("$[0].text").value("Texto movida"))
+                .andExpect(jsonPath("$[1].title").value("Quieta"))
+                .andExpect(jsonPath("$[1].text").value("Texto quieta"))
+                .andExpect(jsonPath("$[1].x").value(nullValue()))
+                .andExpect(jsonPath("$[1].y").value(nullValue()));
+    }
+
+    @Test
+    void unaPosicionConCoordenadasNegativasOAusentesDevuelve400YNoCambiaLoGuardado() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Con posicion\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+        mockMvc.perform(patch("/api/notes/" + id + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":10,\"y\":20}"))
+                .andExpect(status().isOk());
+
+        for (String cuerpo : new String[] {
+                "{\"x\":-1,\"y\":20}",
+                "{\"x\":10,\"y\":-5}",
+                "{\"y\":20}",
+                "{\"x\":10}",
+                "{}"}) {
+            mockMvc.perform(patch("/api/notes/" + id + "/position")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].x").value(10))
+                .andExpect(jsonPath("$[0].y").value(20));
+    }
+
+    @Test
+    void actualizarLaPosicionDeUnaNotaQueNoExisteDevuelve404() throws Exception {
+        mockMvc.perform(patch("/api/notes/999999/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":1,\"y\":2}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void unaPosicionMayorA100000Devuelve400YElTopeExactoEsValido() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Lejos\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(patch("/api/notes/" + id + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":100000,\"y\":100000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.x").value(100000))
+                .andExpect(jsonPath("$.y").value(100000));
+
+        for (String cuerpo : new String[] {
+                "{\"x\":100001,\"y\":0}",
+                "{\"x\":0,\"y\":100001}",
+                "{\"x\":2000000000,\"y\":2000000000}"}) {
+            mockMvc.perform(patch("/api/notes/" + id + "/position")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].x").value(100000))
+                .andExpect(jsonPath("$[0].y").value(100000));
     }
 
     private void crear(String title, String text) throws Exception {

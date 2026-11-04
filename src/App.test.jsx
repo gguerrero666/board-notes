@@ -681,3 +681,272 @@ test('si la ventana pierde el foco durante un arrastre, termina y se guarda la p
   expect(nota).toHaveStyle({ left: '200px', top: '130px' })
   fireEvent.pointerUp(window, { pointerId: 5, clientX: 400, clientY: 280 })
 })
+
+test('al pulsar el icono de editar, la nota muestra los campos con el título y el texto actuales', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [{ id: 1, title: 'Título actual', text: 'Texto actual', x: 100, y: 50 }],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Título actual')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+
+  expect(within(nota).getByLabelText('Título de la nota')).toHaveValue('Título actual')
+  expect(within(nota).getByLabelText('Texto de la nota')).toHaveValue('Texto actual')
+  expect(within(nota).getByRole('button', { name: 'Guardar' })).toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+})
+
+test('al guardar, se envía el PUT con los valores nuevos y la nota vuelve a modo lectura con ellos, en la misma posición', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PUT') {
+      return { ok: true, json: async () => ({ id: 1, title: 'Título nuevo', text: 'Texto nuevo', x: 100, y: 50 }) }
+    }
+    return { ok: true, json: async () => [{ id: 1, title: 'Título viejo', text: 'Texto viejo', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Título viejo')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.clear(within(nota).getByLabelText('Título de la nota'))
+  await user.type(within(nota).getByLabelText('Título de la nota'), 'Título nuevo')
+  await user.clear(within(nota).getByLabelText('Texto de la nota'))
+  await user.type(within(nota).getByLabelText('Texto de la nota'), 'Texto nuevo')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+
+  expect(await within(nota).findByText('Título nuevo')).toBeInTheDocument()
+  expect(within(nota).getByText('Texto nuevo')).toBeInTheDocument()
+  expect(within(nota).queryByLabelText('Título de la nota')).not.toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Editar nota' })).toBeInTheDocument()
+  expect(nota).toHaveStyle({ left: '100px', top: '50px' })
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/notes/1',
+    expect.objectContaining({
+      method: 'PUT',
+      body: JSON.stringify({ title: 'Título nuevo', text: 'Texto nuevo' }),
+    }),
+  )
+})
+
+test('con el título vacío, Guardar no envía nada y la nota sigue en modo edición con lo escrito', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [{ id: 1, title: 'Con título', text: 'Texto original', x: 100, y: 50 }],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Con título')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.clear(within(nota).getByLabelText('Título de la nota'))
+  await user.type(within(nota).getByLabelText('Texto de la nota'), ' editado')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+  // También con solo espacios
+  await user.type(within(nota).getByLabelText('Título de la nota'), '   ')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0)
+  expect(within(nota).getByLabelText('Título de la nota')).toHaveValue('   ')
+  expect(within(nota).getByLabelText('Texto de la nota')).toHaveValue('Texto original editado')
+  expect(within(nota).getByRole('button', { name: 'Guardar' })).toBeInTheDocument()
+})
+
+test('Cancelar restaura el título y el texto anteriores sin enviar nada', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [{ id: 1, title: 'Original', text: 'Texto original', x: 100, y: 50 }],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Original')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.clear(within(nota).getByLabelText('Título de la nota'))
+  await user.type(within(nota).getByLabelText('Título de la nota'), 'Cambiado')
+  await user.type(within(nota).getByLabelText('Texto de la nota'), ' cambiado')
+  await user.click(within(nota).getByRole('button', { name: 'Cancelar' }))
+
+  expect(within(nota).getByText('Original')).toBeInTheDocument()
+  expect(within(nota).getByText('Texto original')).toBeInTheDocument()
+  expect(within(nota).queryByLabelText('Título de la nota')).not.toBeInTheDocument()
+  expect(within(nota).queryByText('Cambiado')).not.toBeInTheDocument()
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0)
+
+  // Al volver a editar, los campos parten de los valores originales, no de lo descartado
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  expect(within(nota).getByLabelText('Título de la nota')).toHaveValue('Original')
+  expect(within(nota).getByLabelText('Texto de la nota')).toHaveValue('Texto original')
+})
+
+test('si falla guardar los cambios, se muestra el mensaje y la nota sigue en modo edición con lo escrito', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PUT') return { ok: false, status: 500, json: async () => ({}) }
+    return { ok: true, json: async () => [{ id: 1, title: 'Original', text: 'Texto original', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Original')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.type(within(nota).getByLabelText('Título de la nota'), ' editado')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+
+  expect(await screen.findByText('No se pudieron guardar los cambios.')).toBeInTheDocument()
+  expect(within(nota).getByLabelText('Título de la nota')).toHaveValue('Original editado')
+  expect(within(nota).getByLabelText('Texto de la nota')).toHaveValue('Texto original')
+  expect(within(nota).getByRole('button', { name: 'Guardar' })).toBeInTheDocument()
+})
+
+test('después de un error al guardar los cambios, al guardar de nuevo y funcionar, el mensaje desaparece', async () => {
+  let intentos = 0
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PUT') {
+      intentos += 1
+      if (intentos === 1) return { ok: false, status: 500, json: async () => ({}) }
+      return { ok: true, json: async () => ({ id: 1, title: 'Original editado', text: 'Texto', x: 100, y: 50 }) }
+    }
+    return { ok: true, json: async () => [{ id: 1, title: 'Original', text: 'Texto', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Original')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.type(within(nota).getByLabelText('Título de la nota'), ' editado')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+  expect(await screen.findByText('No se pudieron guardar los cambios.')).toBeInTheDocument()
+
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+
+  expect(await within(nota).findByText('Original editado')).toBeInTheDocument()
+  expect(screen.queryByText('No se pudieron guardar los cambios.')).not.toBeInTheDocument()
+})
+
+test('los campos de edición limitan el título a 100 y el texto a 1000 caracteres', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [{ id: 1, title: 'Corta', text: 'Texto', x: 100, y: 50 }],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Corta')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  const titulo = within(nota).getByLabelText('Título de la nota')
+  const texto = within(nota).getByLabelText('Texto de la nota')
+
+  expect(titulo).toHaveAttribute('maxlength', '100')
+  expect(texto).toHaveAttribute('maxlength', '1000')
+  await user.clear(titulo)
+  await user.type(titulo, 'a'.repeat(101))
+  expect(titulo.value).toHaveLength(100)
+})
+
+test('si se arrastra la nota mientras el PUT está en vuelo, la respuesta no deshace el movimiento', async () => {
+  let resolverPut
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => {
+    if (options?.method === 'PUT') {
+      return new Promise((resolve) => {
+        // El servidor responde con la posición vieja (100, 50)
+        resolverPut = () =>
+          resolve({ ok: true, json: async () => ({ id: 1, title: 'Título nuevo', text: 'a', x: 100, y: 50 }) })
+      })
+    }
+    if (options?.method === 'PATCH') return Promise.resolve({ ok: true, json: async () => ({}) })
+    return Promise.resolve({ ok: true, json: async () => [{ id: 1, title: 'Título viejo', text: 'a', x: 100, y: 50 }] })
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Título viejo')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.clear(within(nota).getByLabelText('Título de la nota'))
+  await user.type(within(nota).getByLabelText('Título de la nota'), 'Título nuevo')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+
+  // Mientras el PUT está pendiente, el usuario arrastra la nota
+  fireEvent.pointerDown(asaDe(nota), { pointerId: 1, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 1, clientX: 350, clientY: 230 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 350, clientY: 230 })
+  expect(nota).toHaveStyle({ left: '150px', top: '80px' })
+
+  resolverPut()
+  expect(await within(nota).findByText('Título nuevo')).toBeInTheDocument()
+  expect(nota).toHaveStyle({ left: '150px', top: '80px' })
+})
+
+test('mientras se guardan los cambios, Guardar y Cancelar están deshabilitados y un doble clic envía un solo PUT', async () => {
+  let resolverPut
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => {
+    if (options?.method === 'PUT') {
+      return new Promise((resolve) => {
+        resolverPut = () =>
+          resolve({ ok: true, json: async () => ({ id: 1, title: 'Editada', text: 'a', x: 100, y: 50 }) })
+      })
+    }
+    return Promise.resolve({ ok: true, json: async () => [{ id: 1, title: 'Original', text: 'a', x: 100, y: 50 }] })
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Original')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.type(within(nota).getByLabelText('Título de la nota'), ' x')
+  const guardar = within(nota).getByRole('button', { name: 'Guardar' })
+  const cancelar = within(nota).getByRole('button', { name: 'Cancelar' })
+  expect(guardar).toBeEnabled()
+
+  await user.click(guardar)
+  await user.click(guardar)
+
+  expect(guardar).toBeDisabled()
+  expect(cancelar).toBeDisabled()
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1)
+
+  resolverPut()
+  expect(await within(nota).findByText('Editada')).toBeInTheDocument()
+})
+
+test('mientras una nota se edita, los lápices de las otras notas están deshabilitados', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { id: 1, title: 'Primera', text: 'a', x: 100, y: 50 },
+      { id: 2, title: 'Segunda', text: 'b', x: 400, y: 50 },
+    ],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const primera = (await screen.findByText('Primera')).closest('article')
+  const segunda = screen.getByText('Segunda').closest('article')
+  expect(within(segunda).getByRole('button', { name: 'Editar nota' })).toBeEnabled()
+
+  await user.click(within(primera).getByRole('button', { name: 'Editar nota' }))
+  expect(within(segunda).getByRole('button', { name: 'Editar nota' })).toBeDisabled()
+
+  await user.click(within(primera).getByRole('button', { name: 'Cancelar' }))
+  expect(within(segunda).getByRole('button', { name: 'Editar nota' })).toBeEnabled()
+})
+
+test('después de un error al guardar los cambios, Cancelar quita el aviso', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PUT') return { ok: false, status: 500, json: async () => ({}) }
+    return { ok: true, json: async () => [{ id: 1, title: 'Original', text: 'a', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Original')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Editar nota' }))
+  await user.type(within(nota).getByLabelText('Título de la nota'), ' x')
+  await user.click(within(nota).getByRole('button', { name: 'Guardar' }))
+  expect(await screen.findByText('No se pudieron guardar los cambios.')).toBeInTheDocument()
+
+  await user.click(within(nota).getByRole('button', { name: 'Cancelar' }))
+
+  expect(screen.queryByText('No se pudieron guardar los cambios.')).not.toBeInTheDocument()
+})

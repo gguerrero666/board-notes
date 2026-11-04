@@ -118,6 +118,97 @@ form button:hover {
   cursor: grabbing;
 }
 
+.note-edit {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #2a2618;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.note-edit:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.note-edit:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* Modo edición dentro de la nota */
+.note.editing {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note.editing .note-handle {
+  flex: none;
+  margin-bottom: 2px;
+}
+
+.note.editing input,
+.note.editing textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #2a2618;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(42, 38, 24, 0.4);
+  border-radius: 3px;
+}
+
+.note.editing input {
+  flex: none;
+  font-weight: 600;
+}
+
+.note.editing textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
+
+.note.editing input:focus,
+.note.editing textarea:focus {
+  outline: 2px solid #3b5b8c;
+  outline-offset: 0;
+}
+
+.note-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.note-actions button {
+  flex: 1;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #2a2618;
+  background: transparent;
+  border: 1px solid rgba(42, 38, 24, 0.5);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.note-actions .note-save {
+  color: #fff;
+  background: #2a2618;
+  border-color: #2a2618;
+}
+
 .note h2 {
   margin: 0 0 8px;
   font-size: 1.05rem;

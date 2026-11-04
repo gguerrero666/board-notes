@@ -31,6 +31,9 @@ function App() {
   const boardRef = useRef(null)
   const [drag, setDrag] = useState(null)
   const [topId, setTopId] = useState(null)
+  const [editing, setEditing] = useState(null)
+  const [editError, setEditError] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [positionError, setPositionError] = useState(false)
 
   useLayoutEffect(() => {
@@ -49,6 +52,12 @@ function App() {
       .then(setNotes)
       .catch(() => setLoadError(true))
   }, [])
+
+  function noteClass(id) {
+    return ['note', drag?.id === id && 'dragging', editing?.id === id && 'editing']
+      .filter(Boolean)
+      .join(' ')
+  }
 
   function positionOf(note, index) {
     return note.x == null || note.y == null
@@ -126,6 +135,31 @@ function App() {
     }
   }, [drag])
 
+  function saveEdit() {
+    if (saving || editing.title.trim() === '') return
+    setSaving(true)
+    fetch(`/api/notes/${editing.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: editing.title, text: editing.text }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('No se pudieron guardar los cambios')
+        return response.json()
+      })
+      .then((updated) => {
+        setNotes((current) =>
+          current.map((n) =>
+            n.id === updated.id ? { ...n, title: updated.title, text: updated.text } : n,
+          ),
+        )
+        setEditing(null)
+        setEditError(false)
+      })
+      .catch(() => setEditError(true))
+      .finally(() => setSaving(false))
+  }
+
   function addNote(event) {
     event.preventDefault()
     if (sending || title.trim() === '') return
@@ -160,6 +194,7 @@ function App() {
       {loadError && <p role="alert">No se pudieron cargar las notas.</p>}
       {saveError && <p role="alert">No se pudo guardar la nota.</p>}
       {positionError && <p role="alert">No se pudo guardar la posición.</p>}
+      {editError && <p role="alert">No se pudieron guardar los cambios.</p>}
       <form onSubmit={addNote}>
         <label>
           Título
@@ -175,7 +210,7 @@ function App() {
         {notes.map((note, index) => (
           <article
             key={note.id}
-            className={drag?.id === note.id ? 'note dragging' : 'note'}
+            className={noteClass(note.id)}
             style={{ ...positionOf(note, index), zIndex: note.id === topId ? 1 : 0 }}
           >
             <div
@@ -183,8 +218,56 @@ function App() {
               aria-label="Mover nota"
               onPointerDown={(event) => startDrag(event, note, index)}
             />
-            <h2>{note.title}</h2>
-            <p>{note.text}</p>
+            {editing?.id === note.id ? (
+              <>
+                <input
+                  aria-label="Título de la nota"
+                  maxLength={100}
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                />
+                <textarea
+                  aria-label="Texto de la nota"
+                  maxLength={1000}
+                  value={editing.text}
+                  onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                />
+                <div className="note-actions">
+                  <button type="button" className="note-save" disabled={saving} onClick={saveEdit}>
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setEditing(null)
+                      setEditError(false)
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2>{note.title}</h2>
+                <p>{note.text}</p>
+                <button
+                  type="button"
+                  className="note-edit"
+                  aria-label="Editar nota"
+                  disabled={editing !== null}
+                  onClick={() => setEditing({ id: note.id, title: note.title, text: note.text ?? '' })}
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                    />
+                  </svg>
+                </button>
+              </>
+            )}
           </article>
         ))}
       </section>

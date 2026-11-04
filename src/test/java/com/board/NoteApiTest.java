@@ -86,12 +86,7 @@ class NoteApiTest {
 
     @Test
     void crearNotaEnviandoElIdDeUnaNotaExistenteCreaUnaNuevaYLaExistenteNoCambia() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Original\",\"text\":\"Texto original\"}"))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        int idExistente = JsonPath.read(respuesta, "$.id");
+        int idExistente = crear("Original", "Texto original");
 
         mockMvc.perform(post("/api/notes")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -189,11 +184,7 @@ class NoteApiTest {
 
     @Test
     void actualizarLaPosicionDevuelve200ConLaPosicionNuevaYElListadoLaIncluye() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Mover\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Mover", "a");
 
         mockMvc.perform(patch("/api/notes/" + id + "/position")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -210,11 +201,7 @@ class NoteApiTest {
 
     @Test
     void actualizarLaPosicionNoCambiaTituloTextoNiLaPosicionDeOtrasNotas() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Movida\",\"text\":\"Texto movida\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Movida", "Texto movida");
         crear("Quieta", "Texto quieta");
 
         mockMvc.perform(patch("/api/notes/" + id + "/position")
@@ -236,11 +223,7 @@ class NoteApiTest {
 
     @Test
     void unaPosicionConCoordenadasNegativasOAusentesDevuelve400YNoCambiaLoGuardado() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Con posicion\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Con posicion", "a");
         mockMvc.perform(patch("/api/notes/" + id + "/position")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"x\":10,\"y\":20}"))
@@ -276,11 +259,7 @@ class NoteApiTest {
 
     @Test
     void unaPosicionMayorA100000Devuelve400YElTopeExactoEsValido() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Lejos\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Lejos", "a");
 
         mockMvc.perform(patch("/api/notes/" + id + "/position")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -306,11 +285,7 @@ class NoteApiTest {
 
     @Test
     void actualizarElTituloYElTextoDevuelve200ConLaNotaActualizadaYElListadoLaRefleja() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Original\",\"text\":\"Texto original\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Original", "Texto original");
 
         mockMvc.perform(put("/api/notes/" + id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -328,11 +303,7 @@ class NoteApiTest {
 
     @Test
     void actualizarNoCambiaLaPosicionDeLaNotaNiLasOtrasNotas() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Editable\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Editable", "a");
         crear("Intacta", "Texto intacta");
         mockMvc.perform(patch("/api/notes/" + id + "/position")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -359,11 +330,7 @@ class NoteApiTest {
 
     @Test
     void actualizarConEspaciosAlRededorDelTituloLoGuardaRecortado() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Original\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Original", "a");
 
         mockMvc.perform(put("/api/notes/" + id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -377,11 +344,7 @@ class NoteApiTest {
 
     @Test
     void actualizarConElTituloVacioSoloEspaciosOAusenteDevuelve400YNoCambiaLoGuardado() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Se queda\",\"text\":\"Texto que se queda\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Se queda", "Texto que se queda");
 
         for (String cuerpo : new String[] {
                 "{\"title\":\"\",\"text\":\"otro\"}",
@@ -401,11 +364,7 @@ class NoteApiTest {
 
     @Test
     void actualizarConUnTituloDe101CaracteresOUnTextoDe1001Devuelve400YNoCambiaLoGuardado() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Se queda\",\"text\":\"Texto que se queda\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Se queda", "Texto que se queda");
 
         for (String cuerpo : new String[] {
                 "{\"title\":\"" + "t".repeat(101) + "\",\"text\":\"ok\"}",
@@ -439,11 +398,7 @@ class NoteApiTest {
 
     @Test
     void actualizarSinTextoDejaLaNotaSinTexto() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Con texto\",\"text\":\"Se va a borrar\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Con texto", "Se va a borrar");
 
         mockMvc.perform(put("/api/notes/" + id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -459,11 +414,7 @@ class NoteApiTest {
 
     @Test
     void eliminarUnaNotaDevuelve204YYaNoApareceEnElListado() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"A eliminar\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("A eliminar", "a");
 
         mockMvc.perform(delete("/api/notes/" + id))
                 .andExpect(status().isNoContent());
@@ -475,16 +426,8 @@ class NoteApiTest {
 
     @Test
     void eliminarUnaNotaNoCambiaElTituloElTextoNiLaPosicionDeLasDemas() throws Exception {
-        String r1 = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Primera\",\"text\":\"Texto 1\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id1 = JsonPath.read(r1, "$.id");
-        String r2 = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Segunda\",\"text\":\"Texto 2\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id2 = JsonPath.read(r2, "$.id");
+        int id1 = crear("Primera", "Texto 1");
+        int id2 = crear("Segunda", "Texto 2");
         crear("Tercera", "Texto 3");
         mockMvc.perform(patch("/api/notes/" + id2 + "/position")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -521,11 +464,7 @@ class NoteApiTest {
 
     @Test
     void eliminarUnaNotaYaEliminadaDevuelve404() throws Exception {
-        String respuesta = mockMvc.perform(post("/api/notes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Una vez\",\"text\":\"a\"}"))
-                .andReturn().getResponse().getContentAsString();
-        int id = JsonPath.read(respuesta, "$.id");
+        int id = crear("Una vez", "a");
 
         mockMvc.perform(delete("/api/notes/" + id))
                 .andExpect(status().isNoContent());
@@ -533,10 +472,13 @@ class NoteApiTest {
                 .andExpect(status().isNotFound());
     }
 
-    private void crear(String title, String text) throws Exception {
-        mockMvc.perform(post("/api/notes")
+    /** Crea una nota por la API y devuelve su id. */
+    private int crear(String title, String text) throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"" + title + "\",\"text\":\"" + text + "\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(respuesta, "$.id");
     }
 }

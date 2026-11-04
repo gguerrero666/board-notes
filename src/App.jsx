@@ -36,6 +36,7 @@ function App() {
   const [active, setActive] = useState(null)
   const [editError, setEditError] = useState(false)
   const [positionError, setPositionError] = useState(false)
+  const [deleteError, setDeleteError] = useState(false)
 
   useLayoutEffect(() => {
     const measure = () => setBoardWidth(boardRef.current.clientWidth)
@@ -62,6 +63,7 @@ function App() {
 
   function startDrag(event, note, index) {
     if (event.button !== 0 || drag) return
+    if (active?.id === note.id && active.mode === 'delete') return // confirmando un borrado
     const { left, top } = positionOf(note, index)
     setTopId(note.id)
     setDrag({
@@ -152,9 +154,21 @@ function App() {
       .catch(() => setEditError(true))
   }
 
+  function deleteNote(id) {
+    return fetch(`/api/notes/${id}`, { method: 'DELETE' })
+      .then((response) => {
+        if (!response.ok) throw new Error('No se pudo eliminar la nota')
+        setNotes((current) => current.filter((n) => n.id !== id))
+        setActive(null)
+        setDeleteError(false)
+      })
+      .catch(() => setDeleteError(true))
+  }
+
   function cancelEdit() {
     setActive(null)
     setEditError(false)
+    setDeleteError(false)
   }
 
   function addNote(event) {
@@ -192,6 +206,7 @@ function App() {
       {saveError && <p role="alert">No se pudo guardar la nota.</p>}
       {positionError && <p role="alert">No se pudo guardar la posición.</p>}
       {editError && <p role="alert">No se pudieron guardar los cambios.</p>}
+      {deleteError && <p role="alert">No se pudo eliminar la nota.</p>}
       <form onSubmit={addNote}>
         <label>
           Título
@@ -212,9 +227,12 @@ function App() {
             isTop={note.id === topId}
             isDragging={drag?.id === note.id}
             isEditing={active?.id === note.id && active.mode === 'edit'}
+            isDeleting={active?.id === note.id && active.mode === 'delete'}
             canEdit={active === null}
             onHandlePointerDown={(event) => startDrag(event, note, index)}
             onStartEdit={() => setActive({ id: note.id, mode: 'edit' })}
+            onStartDelete={() => setActive({ id: note.id, mode: 'delete' })}
+            onConfirmDelete={() => deleteNote(note.id)}
             onCancelEdit={cancelEdit}
             onSave={(title, text) => updateNote(note.id, title, text)}
           />

@@ -9,22 +9,31 @@ function Note({
   isTop,
   isDragging,
   isEditing,
+  isDeleting,
   canEdit,
   onHandlePointerDown,
   onStartEdit,
+  onStartDelete,
+  onConfirmDelete,
   onCancelEdit,
   onSave,
 }) {
   const [draft, setDraft] = useState({ title: '', text: '' })
   const [saving, setSaving] = useState(false)
 
-  const className = ['note', isDragging && 'dragging', isEditing && 'editing']
+  const className = ['note', isDragging && 'dragging', isEditing && 'editing', isDeleting && 'deleting']
     .filter(Boolean)
     .join(' ')
 
   function startEdit() {
     setDraft({ title: note.title, text: note.text ?? '' })
     onStartEdit()
+  }
+
+  function confirmDelete() {
+    if (saving) return
+    setSaving(true)
+    onConfirmDelete().finally(() => setSaving(false))
   }
 
   function save() {
@@ -59,10 +68,36 @@ function Note({
             </button>
           </div>
         </>
+      ) : isDeleting ? (
+        <>
+          <p className="note-confirm">¿Eliminar esta nota?</p>
+          <div className="note-actions">
+            <button type="button" className="note-save" disabled={saving} onClick={confirmDelete}>
+              Eliminar
+            </button>
+            <button type="button" disabled={saving} onClick={onCancelEdit}>
+              Cancelar
+            </button>
+          </div>
+        </>
       ) : (
         <>
           <h2>{note.title}</h2>
           <p>{note.text}</p>
+          <button
+            type="button"
+            className="note-delete"
+            aria-label="Eliminar nota"
+            disabled={!canEdit}
+            onClick={onStartDelete}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             className="note-edit"

@@ -118,7 +118,8 @@ form button:hover {
   cursor: grabbing;
 }
 
-.note-edit {
+.note-edit,
+.note-delete {
   position: absolute;
   right: 6px;
   bottom: 6px;
@@ -134,13 +135,47 @@ form button:hover {
   cursor: pointer;
 }
 
-.note-edit:disabled {
+.note-delete {
+  right: auto;
+  left: 6px;
+}
+
+.note-edit:disabled,
+.note-delete:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.note-edit:hover:not(:disabled) {
+.note-edit:hover:not(:disabled),
+.note-delete:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.12);
+}
+
+/* Confirmación de borrado dentro de la nota */
+.note.deleting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note.deleting .note-handle {
+  flex: none;
+  margin-bottom: 2px;
+}
+
+.note-confirm {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.note.deleting .note-save {
+  background: #8c2f2f;
+  border-color: #8c2f2f;
 }
 
 /* Modo edición dentro de la nota */

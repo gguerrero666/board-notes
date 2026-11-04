@@ -950,3 +950,255 @@ test('después de un error al guardar los cambios, Cancelar quita el aviso', asy
 
   expect(screen.queryByText('No se pudieron guardar los cambios.')).not.toBeInTheDocument()
 })
+
+test('al pulsar la papelera, la nota muestra la confirmación con Eliminar y Cancelar sin enviar nada', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [{ id: 1, title: 'A eliminar', text: 'Texto', x: 100, y: 50 }],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('A eliminar')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+
+  expect(within(nota).getByText('¿Eliminar esta nota?')).toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Eliminar' })).toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(0)
+})
+
+test('al confirmar, se envía el DELETE y la nota desaparece; las demás conservan su posición', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'DELETE') return { ok: true, status: 204 }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'Primera', text: 'a', x: 100, y: 50 },
+        { id: 2, title: 'Segunda', text: 'b', x: 400, y: 60 },
+        { id: 3, title: 'Tercera', text: 'c', x: 700, y: 70 },
+      ],
+    }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const segunda = (await screen.findByText('Segunda')).closest('article')
+  await user.click(within(segunda).getByRole('button', { name: 'Eliminar nota' }))
+  await user.click(within(segunda).getByRole('button', { name: 'Eliminar' }))
+
+  await vi.waitFor(() => expect(screen.queryByText('Segunda')).not.toBeInTheDocument())
+  expect(fetch).toHaveBeenCalledWith('/api/notes/2', expect.objectContaining({ method: 'DELETE' }))
+  expect(screen.getByText('Primera').closest('article')).toHaveStyle({ left: '100px', top: '50px' })
+  expect(screen.getByText('Tercera').closest('article')).toHaveStyle({ left: '700px', top: '70px' })
+  expect(screen.getAllByRole('article')).toHaveLength(2)
+})
+
+test('Cancelar en la confirmación de borrado devuelve la nota a modo lectura sin enviar nada', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [{ id: 1, title: 'Se queda', text: 'Texto', x: 100, y: 50 }],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Se queda')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+  await user.click(within(nota).getByRole('button', { name: 'Cancelar' }))
+
+  expect(within(nota).queryByText('¿Eliminar esta nota?')).not.toBeInTheDocument()
+  expect(within(nota).getByText('Se queda')).toBeInTheDocument()
+  expect(within(nota).getByText('Texto')).toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Eliminar nota' })).toBeEnabled()
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(0)
+})
+
+test('si falla eliminar, la nota sigue en el board y se muestra el mensaje', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'DELETE') return { ok: false, status: 500 }
+    return { ok: true, json: async () => [{ id: 1, title: 'No se borra', text: 'Texto', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('No se borra')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar' }))
+
+  expect(await screen.findByText('No se pudo eliminar la nota.')).toBeInTheDocument()
+  expect(screen.getAllByRole('article')).toHaveLength(1)
+  expect(nota).toHaveStyle({ left: '100px', top: '50px' })
+  // La nota se queda en la confirmación, para poder reintentar o cancelar
+  expect(within(nota).getByText('¿Eliminar esta nota?')).toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Eliminar' })).toBeInTheDocument()
+  expect(within(nota).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+})
+
+test('después de un error al eliminar, al eliminar de nuevo y funcionar, el mensaje desaparece', async () => {
+  let intentos = 0
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'DELETE') {
+      intentos += 1
+      return intentos === 1 ? { ok: false, status: 500 } : { ok: true, status: 204 }
+    }
+    return { ok: true, json: async () => [{ id: 1, title: 'Reintento', text: 'Texto', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Reintento')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar' }))
+  expect(await screen.findByText('No se pudo eliminar la nota.')).toBeInTheDocument()
+
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar' }))
+
+  await vi.waitFor(() => expect(screen.queryByRole('article')).not.toBeInTheDocument())
+  expect(screen.queryByText('No se pudo eliminar la nota.')).not.toBeInTheDocument()
+})
+
+test('mientras se elimina, Eliminar y Cancelar están deshabilitados y un doble clic envía un solo DELETE', async () => {
+  let resolverDelete
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => {
+    if (options?.method === 'DELETE') {
+      return new Promise((resolve) => {
+        resolverDelete = () => resolve({ ok: true, status: 204 })
+      })
+    }
+    return Promise.resolve({ ok: true, json: async () => [{ id: 1, title: 'Una vez', text: 'Texto', x: 100, y: 50 }] })
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Una vez')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+  const eliminar = within(nota).getByRole('button', { name: 'Eliminar' })
+  const cancelar = within(nota).getByRole('button', { name: 'Cancelar' })
+  expect(eliminar).toBeEnabled()
+
+  await user.click(eliminar)
+  await user.click(eliminar)
+
+  expect(eliminar).toBeDisabled()
+  expect(cancelar).toBeDisabled()
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1)
+
+  resolverDelete()
+  await vi.waitFor(() => expect(screen.queryByRole('article')).not.toBeInTheDocument())
+})
+
+test('mientras una nota se edita, las papeleras de las otras notas están deshabilitadas', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { id: 1, title: 'Primera', text: 'a', x: 100, y: 50 },
+      { id: 2, title: 'Segunda', text: 'b', x: 400, y: 50 },
+    ],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const primera = (await screen.findByText('Primera')).closest('article')
+  const segunda = screen.getByText('Segunda').closest('article')
+  expect(within(segunda).getByRole('button', { name: 'Eliminar nota' })).toBeEnabled()
+
+  await user.click(within(primera).getByRole('button', { name: 'Editar nota' }))
+  expect(within(segunda).getByRole('button', { name: 'Eliminar nota' })).toBeDisabled()
+
+  await user.click(within(primera).getByRole('button', { name: 'Cancelar' }))
+  expect(within(segunda).getByRole('button', { name: 'Eliminar nota' })).toBeEnabled()
+})
+
+test('mientras una nota está en confirmación de borrado, los lápices y papeleras de las otras están deshabilitados', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { id: 1, title: 'Primera', text: 'a', x: 100, y: 50 },
+      { id: 2, title: 'Segunda', text: 'b', x: 400, y: 50 },
+    ],
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const primera = (await screen.findByText('Primera')).closest('article')
+  const segunda = screen.getByText('Segunda').closest('article')
+  expect(within(segunda).getByRole('button', { name: 'Editar nota' })).toBeEnabled()
+  expect(within(segunda).getByRole('button', { name: 'Eliminar nota' })).toBeEnabled()
+
+  await user.click(within(primera).getByRole('button', { name: 'Eliminar nota' }))
+  expect(within(segunda).getByRole('button', { name: 'Editar nota' })).toBeDisabled()
+  expect(within(segunda).getByRole('button', { name: 'Eliminar nota' })).toBeDisabled()
+
+  await user.click(within(primera).getByRole('button', { name: 'Cancelar' }))
+  expect(within(segunda).getByRole('button', { name: 'Editar nota' })).toBeEnabled()
+  expect(within(segunda).getByRole('button', { name: 'Eliminar nota' })).toBeEnabled()
+})
+
+test('al eliminar una nota sin posición, las que van detrás en la cuadrícula ocupan el hueco', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'DELETE') return { ok: true, status: 204 }
+    return {
+      ok: true,
+      json: async () =>
+        [1, 2, 3].map((n) => ({ id: n, title: `Nota ${n}`, text: 'a', x: null, y: null })),
+    }
+  })
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')
+  Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => 1000 })
+  const user = userEvent.setup()
+
+  try {
+    render(<App />)
+    const primera = (await screen.findByText('Nota 1')).closest('article')
+    // 1000 px: 4 columnas; las tres notas ocupan los huecos 0, 1 y 2 de la primera fila
+    expect(screen.getByText('Nota 2').closest('article')).toHaveStyle({ left: '244px', top: '0px' })
+    expect(screen.getByText('Nota 3').closest('article')).toHaveStyle({ left: '488px', top: '0px' })
+
+    await user.click(within(primera).getByRole('button', { name: 'Eliminar nota' }))
+    await user.click(within(primera).getByRole('button', { name: 'Eliminar' }))
+
+    await vi.waitFor(() => expect(screen.queryByText('Nota 1')).not.toBeInTheDocument())
+    expect(screen.getByText('Nota 2').closest('article')).toHaveStyle({ left: '0px', top: '0px' })
+    expect(screen.getByText('Nota 3').closest('article')).toHaveStyle({ left: '244px', top: '0px' })
+  } finally {
+    Object.defineProperty(Element.prototype, 'clientWidth', original)
+  }
+})
+
+test('después de un error al eliminar, Cancelar quita el aviso', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'DELETE') return { ok: false, status: 500 }
+    return { ok: true, json: async () => [{ id: 1, title: 'Se queda', text: 'Texto', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Se queda')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar' }))
+  expect(await screen.findByText('No se pudo eliminar la nota.')).toBeInTheDocument()
+
+  await user.click(within(nota).getByRole('button', { name: 'Cancelar' }))
+
+  expect(screen.queryByText('No se pudo eliminar la nota.')).not.toBeInTheDocument()
+  expect(within(nota).getByText('Se queda')).toBeInTheDocument()
+})
+
+test('una nota en confirmación de borrado no se puede arrastrar', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return { ok: true, json: async () => [{ id: 1, title: 'Quieta', text: 'Texto', x: 100, y: 50 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const nota = (await screen.findByText('Quieta')).closest('article')
+  await user.click(within(nota).getByRole('button', { name: 'Eliminar nota' }))
+
+  fireEvent.pointerDown(asaDe(nota), { pointerId: 1, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 1, clientX: 350, clientY: 230 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 350, clientY: 230 })
+
+  expect(nota).toHaveStyle({ left: '100px', top: '50px' })
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0)
+})

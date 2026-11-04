@@ -34,7 +34,10 @@ function App() {
   const [positionError, setPositionError] = useState(false)
 
   useLayoutEffect(() => {
-    setBoardWidth(boardRef.current.clientWidth)
+    const measure = () => setBoardWidth(boardRef.current.clientWidth)
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
   }, [])
 
   useEffect(() => {
@@ -54,11 +57,12 @@ function App() {
   }
 
   function startDrag(event, note, index) {
-    if (event.button !== 0) return
+    if (event.button !== 0 || drag) return
     const { left, top } = positionOf(note, index)
     setTopId(note.id)
     setDrag({
       id: note.id,
+      pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       startScrollX: window.scrollX,
@@ -79,15 +83,25 @@ function App() {
       if (distanceToEnd < EDGE) return SCROLL_STEP
       return 0
     }
+    let last = { x: drag.left, y: drag.top } // última posición alcanzada, para cerrar sin evento de puntero
     function onMove(event) {
+      if (event.pointerId !== drag.pointerId) return
       const scrollX = edgeScroll(event.clientX, window.innerWidth - event.clientX)
       const scrollY = edgeScroll(event.clientY, window.innerHeight - event.clientY)
       if (scrollX !== 0 || scrollY !== 0) window.scrollBy(scrollX, scrollY)
       const { x, y } = target(event)
+      last = { x, y }
       setNotes((current) => current.map((n) => (n.id === drag.id ? { ...n, x, y } : n)))
     }
     function onUp(event) {
+      if (event.pointerId !== drag.pointerId) return
       const { x, y } = target(event)
+      finish(x, y)
+    }
+    function onBlur() {
+      finish(last.x, last.y)
+    }
+    function finish(x, y) {
       setDrag(null)
       fetch(`/api/notes/${drag.id}/position`, {
         method: 'PATCH',
@@ -103,10 +117,12 @@ function App() {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
+    window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('blur', onBlur)
     }
   }, [drag])
 
@@ -161,8 +177,12 @@ function App() {
             key={note.id}
             className={drag?.id === note.id ? 'note dragging' : 'note'}
             style={{ ...positionOf(note, index), zIndex: note.id === topId ? 1 : 0 }}
-            onPointerDown={(event) => startDrag(event, note, index)}
           >
+            <div
+              className="note-handle"
+              aria-label="Mover nota"
+              onPointerDown={(event) => startDrag(event, note, index)}
+            />
             <h2>{note.title}</h2>
             <p>{note.text}</p>
           </article>

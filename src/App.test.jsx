@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App.jsx'
+
+const asaDe = (nota) => within(nota).getByLabelText('Mover nota')
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -296,7 +298,7 @@ test('al arrastrar una nota y soltarla, se envía el PATCH con su posición inic
   render(<App />)
   const nota = (await screen.findByText('Arrastrable')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { clientX: 350, clientY: 230 })
   fireEvent.pointerUp(window, { clientX: 350, clientY: 230 })
 
@@ -323,7 +325,7 @@ test('al arrastrar una nota más allá del borde superior o izquierdo, su posici
   render(<App />)
   const nota = (await screen.findByText('Al borde')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { clientX: 100, clientY: 100 })
   expect(nota).toHaveStyle({ left: '0px', top: '0px' })
   fireEvent.pointerUp(window, { clientX: 100, clientY: 100 })
@@ -347,7 +349,7 @@ test('si falla guardar la posición, se muestra el mensaje y la nota queda donde
   render(<App />)
   const nota = (await screen.findByText('Falla')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { clientX: 350, clientY: 230 })
   fireEvent.pointerUp(window, { clientX: 350, clientY: 230 })
 
@@ -369,12 +371,12 @@ test('después de un error al guardar la posición, al mover otra vez y funciona
   render(<App />)
   const nota = (await screen.findByText('Reintenta')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { clientX: 350, clientY: 230 })
   fireEvent.pointerUp(window, { clientX: 350, clientY: 230 })
   expect(await screen.findByText('No se pudo guardar la posición.')).toBeInTheDocument()
 
-  fireEvent.pointerDown(nota, { clientX: 350, clientY: 230, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 350, clientY: 230, button: 0 })
   fireEvent.pointerMove(window, { clientX: 400, clientY: 280 })
   fireEvent.pointerUp(window, { clientX: 400, clientY: 280 })
 
@@ -394,7 +396,7 @@ test('al arrastrar cerca de los bordes de la ventana, la página se desplaza en 
   render(<App />)
   const nota = (await screen.findByText('Cerca del borde')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { clientX: window.innerWidth - 10, clientY: window.innerHeight - 10 })
   const [dxAbajoDerecha, dyAbajoDerecha] = scrollBy.mock.calls.at(-1)
   expect(dxAbajoDerecha).toBeGreaterThan(0)
@@ -420,7 +422,7 @@ test('si la página se desplaza durante el arrastre, la nota sigue al puntero', 
   render(<App />)
   const nota = (await screen.findByText('Con scroll')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   Object.defineProperty(window, 'scrollX', { value: 60, configurable: true })
   Object.defineProperty(window, 'scrollY', { value: 100, configurable: true })
   try {
@@ -445,7 +447,7 @@ test('un clic con el botón derecho o central no inicia el arrastre', async () =
   const nota = (await screen.findByText('Solo izquierdo')).closest('article')
 
   for (const button of [1, 2]) {
-    fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button })
+    fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button })
     fireEvent.pointerMove(window, { clientX: 350, clientY: 230 })
     fireEvent.pointerUp(window, { clientX: 350, clientY: 230 })
   }
@@ -464,7 +466,7 @@ test('si el navegador cancela el gesto, el arrastre termina y se guarda la posic
   render(<App />)
   const nota = (await screen.findByText('Cancelada')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { clientX: 350, clientY: 230 })
   fireEvent.pointerCancel(window, { clientX: 350, clientY: 230 })
 
@@ -489,7 +491,7 @@ test('al arrastrar muy lejos, la posición se limita a 100000 en cada eje', asyn
   render(<App />)
   const nota = (await screen.findByText('Muy lejos')).closest('article')
 
-  fireEvent.pointerDown(nota, { clientX: 0, clientY: 0, button: 0 })
+  fireEvent.pointerDown(asaDe(nota), { clientX: 0, clientY: 0, button: 0 })
   fireEvent.pointerMove(window, { clientX: 5000, clientY: 5000 })
   expect(nota).toHaveStyle({ left: '100000px', top: '100000px' })
   fireEvent.pointerUp(window, { clientX: 5000, clientY: 5000 })
@@ -500,4 +502,182 @@ test('al arrastrar muy lejos, la posición se limita a 100000 en cada eje', asyn
       expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ x: 100000, y: 100000 }) }),
     ),
   )
+})
+
+test('arrastrar desde el asa con un puntero táctil mueve la nota y envía el PATCH con su posición final', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return { ok: true, json: async () => [{ id: 1, title: 'Con asa', text: 'a', x: 100, y: 50 }] }
+  })
+
+  render(<App />)
+  const nota = (await screen.findByText('Con asa')).closest('article')
+  const asa = within(nota).getByLabelText('Mover nota')
+  const dedo = { pointerId: 7, pointerType: 'touch' }
+
+  fireEvent.pointerDown(asa, { ...dedo, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerMove(window, { ...dedo, clientX: 340, clientY: 260 })
+  fireEvent.pointerUp(window, { ...dedo, clientX: 340, clientY: 260 })
+
+  await vi.waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/notes/1/position',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ x: 140, y: 110 }) }),
+    ),
+  )
+  expect(nota).toHaveStyle({ left: '140px', top: '110px' })
+})
+
+test('pulsar y arrastrar desde otra parte de la nota no la mueve ni envía ningún PATCH', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return { ok: true, json: async () => [{ id: 1, title: 'Título fijo', text: 'Texto fijo', x: 100, y: 50 }] }
+  })
+
+  render(<App />)
+  const nota = (await screen.findByText('Título fijo')).closest('article')
+  const dedo = { pointerId: 3, pointerType: 'touch' }
+
+  for (const zona of [screen.getByText('Título fijo'), screen.getByText('Texto fijo'), nota]) {
+    fireEvent.pointerDown(zona, { ...dedo, clientX: 300, clientY: 200, button: 0 })
+    fireEvent.pointerMove(window, { ...dedo, clientX: 360, clientY: 280 })
+    fireEvent.pointerUp(window, { ...dedo, clientX: 360, clientY: 280 })
+  }
+
+  expect(nota).toHaveStyle({ left: '100px', top: '50px' })
+  const patches = fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH')
+  expect(patches).toHaveLength(0)
+})
+
+test('mientras un puntero arrastra una nota, un segundo puntero se ignora', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'Primera', text: 'a', x: 100, y: 50 },
+        { id: 2, title: 'Segunda', text: 'b', x: 400, y: 50 },
+      ],
+    }
+  })
+
+  render(<App />)
+  const primera = (await screen.findByText('Primera')).closest('article')
+  const segunda = screen.getByText('Segunda').closest('article')
+  const dedo1 = { pointerId: 1, pointerType: 'touch' }
+  const dedo2 = { pointerId: 2, pointerType: 'touch' }
+
+  fireEvent.pointerDown(asaDe(primera), { ...dedo1, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerMove(window, { ...dedo1, clientX: 340, clientY: 260 })
+  expect(primera).toHaveStyle({ left: '140px', top: '110px' })
+
+  // Segundo dedo: baja sobre la otra nota, se mueve y se levanta
+  fireEvent.pointerDown(asaDe(segunda), { ...dedo2, clientX: 600, clientY: 100, button: 0 })
+  fireEvent.pointerMove(window, { ...dedo2, clientX: 800, clientY: 500 })
+  fireEvent.pointerUp(window, { ...dedo2, clientX: 800, clientY: 500 })
+
+  expect(primera).toHaveStyle({ left: '140px', top: '110px' })
+  expect(segunda).toHaveStyle({ left: '400px', top: '50px' })
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0)
+
+  // El primer dedo sigue mandando y al levantarlo se guarda solo su nota
+  fireEvent.pointerUp(window, { ...dedo1, clientX: 340, clientY: 260 })
+  await vi.waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/notes/1/position',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ x: 140, y: 110 }) }),
+    ),
+  )
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(1)
+})
+
+test('al cambiar el tamaño de la ventana, las notas sin posición pasan al nuevo número de columnas', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () =>
+      [1, 2, 3, 4, 5].map((n) => ({ id: n, title: `Nota ${n}`, text: 'a', x: null, y: null })),
+  })
+  let ancho = 1000
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')
+  Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => ancho })
+
+  try {
+    render(<App />)
+    const notas = await screen.findAllByRole('article')
+
+    // 1000 px de ancho: caben 4 columnas de 220 px con huecos de 24 px
+    expect(notas[3]).toHaveStyle({ left: '732px', top: '0px' })
+    expect(notas[4]).toHaveStyle({ left: '0px', top: '244px' })
+
+    ancho = 300
+    fireEvent(window, new Event('resize'))
+
+    // 300 px de ancho: cabe 1 columna
+    await vi.waitFor(() => expect(notas[3]).toHaveStyle({ left: '0px', top: '732px' }))
+    expect(notas[4]).toHaveStyle({ left: '0px', top: '976px' })
+  } finally {
+    Object.defineProperty(Element.prototype, 'clientWidth', original)
+  }
+})
+
+test('al cambiar el tamaño de la ventana, las notas con posición guardada no se mueven', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { id: 1, title: 'Fija', text: 'a', x: 500, y: 300 },
+      { id: 2, title: 'Sin mover 1', text: 'b', x: null, y: null },
+      { id: 3, title: 'Sin mover 2', text: 'c', x: null, y: null },
+    ],
+  })
+  let ancho = 1000
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')
+  Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => ancho })
+
+  try {
+    render(<App />)
+    const fija = (await screen.findByText('Fija')).closest('article')
+    const sinMover = screen.getByText('Sin mover 2').closest('article')
+    // 1000 px: 4 columnas, la tercera nota (índice 2) queda en la tercera columna
+    expect(sinMover).toHaveStyle({ left: '488px', top: '0px' })
+
+    ancho = 300
+    fireEvent(window, new Event('resize'))
+
+    // La nota sin mover sí se recoloca (1 columna: tercer hueco, abajo)...
+    await vi.waitFor(() => expect(sinMover).toHaveStyle({ left: '0px', top: '488px' }))
+    // ...y la que tiene posición guardada no se mueve
+    expect(fija).toHaveStyle({ left: '500px', top: '300px' })
+  } finally {
+    Object.defineProperty(Element.prototype, 'clientWidth', original)
+  }
+})
+
+test('si la ventana pierde el foco durante un arrastre, termina y se guarda la posición actual', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return { ok: true, json: async () => [{ id: 1, title: 'Sin foco', text: 'a', x: 100, y: 50 }] }
+  })
+
+  render(<App />)
+  const nota = (await screen.findByText('Sin foco')).closest('article')
+
+  fireEvent.pointerDown(asaDe(nota), { pointerId: 4, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 4, clientX: 350, clientY: 230 })
+  fireEvent.blur(window)
+
+  await vi.waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/notes/1/position',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ x: 150, y: 80 }) }),
+    ),
+  )
+  // El arrastre terminó: el puntero ya no mueve la nota...
+  fireEvent.pointerMove(window, { pointerId: 4, clientX: 500, clientY: 500 })
+  expect(nota).toHaveStyle({ left: '150px', top: '80px' })
+
+  // ...y se puede arrastrar otra vez (no queda atascado)
+  fireEvent.pointerDown(asaDe(nota), { pointerId: 5, clientX: 350, clientY: 230, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 5, clientX: 400, clientY: 280 })
+  expect(nota).toHaveStyle({ left: '200px', top: '130px' })
+  fireEvent.pointerUp(window, { pointerId: 5, clientX: 400, clientY: 280 })
 })

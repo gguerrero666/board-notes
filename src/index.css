@@ -88,8 +88,6 @@ form button:hover {
 /* Nota tipo post-it, color y tamaño fijos */
 .note {
   position: absolute;
-  cursor: grab;
-  user-select: none;
   box-sizing: border-box;
   width: 220px;
   height: 220px;
@@ -102,8 +100,22 @@ form button:hover {
 }
 
 .note.dragging {
-  cursor: grabbing;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* Asa: la única zona que arrastra la nota; bloquea el gesto del navegador solo aquí */
+.note-handle {
+  height: 32px;
+  margin: -16px -16px 8px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  background: rgba(0, 0, 0, 0.12)
+    radial-gradient(circle, rgba(42, 38, 24, 0.55) 1.5px, transparent 2px) center / 10px 10px repeat-x;
+}
+
+.note.dragging .note-handle {
+  cursor: grabbing;
 }
 
 .note h2 {

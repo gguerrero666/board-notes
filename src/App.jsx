@@ -32,7 +32,8 @@ function App() {
   const boardRef = useRef(null)
   const [drag, setDrag] = useState(null)
   const [topId, setTopId] = useState(null)
-  const [editingId, setEditingId] = useState(null)
+  // Nota con una acción abierta (por ahora solo 'edit'); null si ninguna
+  const [active, setActive] = useState(null)
   const [editError, setEditError] = useState(false)
   const [positionError, setPositionError] = useState(false)
 
@@ -145,14 +146,14 @@ function App() {
             n.id === updated.id ? { ...n, title: updated.title, text: updated.text } : n,
           ),
         )
-        setEditingId(null)
+        setActive(null)
         setEditError(false)
       })
       .catch(() => setEditError(true))
   }
 
   function cancelEdit() {
-    setEditingId(null)
+    setActive(null)
     setEditError(false)
   }
 
@@ -210,10 +211,10 @@ function App() {
             position={positionOf(note, index)}
             isTop={note.id === topId}
             isDragging={drag?.id === note.id}
-            isEditing={editingId === note.id}
-            canEdit={editingId === null}
+            isEditing={active?.id === note.id && active.mode === 'edit'}
+            canEdit={active === null}
             onHandlePointerDown={(event) => startDrag(event, note, index)}
-            onStartEdit={() => setEditingId(note.id)}
+            onStartEdit={() => setActive({ id: note.id, mode: 'edit' })}
             onCancelEdit={cancelEdit}
             onSave={(title, text) => updateNote(note.id, title, text)}
           />

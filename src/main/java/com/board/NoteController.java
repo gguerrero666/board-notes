@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@Tag(name = "Notas", description = "Crear, listar, editar y mover las notas del board")
+@Tag(name = "Notas", description = "Crear, listar, editar, mover y eliminar las notas del board")
 @RequestMapping("/api/notes")
 public class NoteController {
 
@@ -59,6 +60,18 @@ public class NoteController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         note.updateContent(request.title(), request.text());
         return repository.save(note);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar nota", description = "Elimina definitivamente una nota. No modifica las demás notas.")
+    @ApiResponse(responseCode = "204", description = "Nota eliminada")
+    @ApiResponse(responseCode = "404", description = "No existe una nota con ese id", content = @Content)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        repository.deleteById(id);
     }
 
     @PatchMapping("/{id}/position")

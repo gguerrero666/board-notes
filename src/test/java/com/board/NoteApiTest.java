@@ -14,6 +14,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -454,6 +455,82 @@ class NoteApiTest {
         mockMvc.perform(get("/api/notes"))
                 .andExpect(jsonPath("$[0].title").value("Solo título"))
                 .andExpect(jsonPath("$[0].text").value(nullValue()));
+    }
+
+    @Test
+    void eliminarUnaNotaDevuelve204YYaNoApareceEnElListado() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"A eliminar\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(delete("/api/notes/" + id))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void eliminarUnaNotaNoCambiaElTituloElTextoNiLaPosicionDeLasDemas() throws Exception {
+        String r1 = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Primera\",\"text\":\"Texto 1\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id1 = JsonPath.read(r1, "$.id");
+        String r2 = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Segunda\",\"text\":\"Texto 2\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id2 = JsonPath.read(r2, "$.id");
+        crear("Tercera", "Texto 3");
+        mockMvc.perform(patch("/api/notes/" + id2 + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":300,\"y\":120}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/notes/" + id1))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].id").value(id2))
+                .andExpect(jsonPath("$[0].title").value("Segunda"))
+                .andExpect(jsonPath("$[0].text").value("Texto 2"))
+                .andExpect(jsonPath("$[0].x").value(300))
+                .andExpect(jsonPath("$[0].y").value(120))
+                .andExpect(jsonPath("$[1].title").value("Tercera"))
+                .andExpect(jsonPath("$[1].text").value("Texto 3"))
+                .andExpect(jsonPath("$[1].x").value(nullValue()))
+                .andExpect(jsonPath("$[1].y").value(nullValue()));
+    }
+
+    @Test
+    void eliminarUnaNotaQueNoExisteDevuelve404YNoCambiaNada() throws Exception {
+        crear("Se queda", "Texto");
+
+        mockMvc.perform(delete("/api/notes/999999"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Se queda"));
+    }
+
+    @Test
+    void eliminarUnaNotaYaEliminadaDevuelve404() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Una vez\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(delete("/api/notes/" + id))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/notes/" + id))
+                .andExpect(status().isNotFound());
     }
 
     private void crear(String title, String text) throws Exception {

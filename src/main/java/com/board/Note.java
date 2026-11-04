@@ -6,8 +6,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import org.hibernate.annotations.DynamicUpdate;
 
 @Entity
+@DynamicUpdate
 @Schema(description = "Nota del board con título y texto")
 public class Note {
 
@@ -28,9 +30,13 @@ public class Note {
 
     public Long getId() { return id; }
     public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
     public String getText() { return text; }
-    public void setText(String text) { this.text = text; }
+    /** Reemplaza el contenido de la nota; el título se guarda recortado. */
+    public void updateContent(String title, String text) {
+        this.title = title.trim();
+        this.text = text;
+    }
+
     public Integer getX() { return x; }
     public Integer getY() { return y; }
     public void setX(Integer x) { this.x = x; }

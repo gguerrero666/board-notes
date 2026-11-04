@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -300,6 +301,159 @@ class NoteApiTest {
         mockMvc.perform(get("/api/notes"))
                 .andExpect(jsonPath("$[0].x").value(100000))
                 .andExpect(jsonPath("$[0].y").value(100000));
+    }
+
+    @Test
+    void actualizarElTituloYElTextoDevuelve200ConLaNotaActualizadaYElListadoLaRefleja() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Original\",\"text\":\"Texto original\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(put("/api/notes/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Editado\",\"text\":\"Texto editado\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.title").value("Editado"))
+                .andExpect(jsonPath("$.text").value("Texto editado"));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Editado"))
+                .andExpect(jsonPath("$[0].text").value("Texto editado"));
+    }
+
+    @Test
+    void actualizarNoCambiaLaPosicionDeLaNotaNiLasOtrasNotas() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Editable\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+        crear("Intacta", "Texto intacta");
+        mockMvc.perform(patch("/api/notes/" + id + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":250,\"y\":90}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/notes/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Editada\",\"text\":\"b\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.x").value(250))
+                .andExpect(jsonPath("$.y").value(90));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].title").value("Editada"))
+                .andExpect(jsonPath("$[0].x").value(250))
+                .andExpect(jsonPath("$[0].y").value(90))
+                .andExpect(jsonPath("$[1].title").value("Intacta"))
+                .andExpect(jsonPath("$[1].text").value("Texto intacta"))
+                .andExpect(jsonPath("$[1].x").value(nullValue()))
+                .andExpect(jsonPath("$[1].y").value(nullValue()));
+    }
+
+    @Test
+    void actualizarConEspaciosAlRededorDelTituloLoGuardaRecortado() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Original\",\"text\":\"a\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(put("/api/notes/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"   Pagar luz  \",\"text\":\"Viernes\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Pagar luz"));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].title").value("Pagar luz"));
+    }
+
+    @Test
+    void actualizarConElTituloVacioSoloEspaciosOAusenteDevuelve400YNoCambiaLoGuardado() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Se queda\",\"text\":\"Texto que se queda\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        for (String cuerpo : new String[] {
+                "{\"title\":\"\",\"text\":\"otro\"}",
+                "{\"title\":\"   \",\"text\":\"otro\"}",
+                "{\"text\":\"otro\"}"}) {
+            mockMvc.perform(put("/api/notes/" + id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Se queda"))
+                .andExpect(jsonPath("$[0].text").value("Texto que se queda"));
+    }
+
+    @Test
+    void actualizarConUnTituloDe101CaracteresOUnTextoDe1001Devuelve400YNoCambiaLoGuardado() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Se queda\",\"text\":\"Texto que se queda\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        for (String cuerpo : new String[] {
+                "{\"title\":\"" + "t".repeat(101) + "\",\"text\":\"ok\"}",
+                "{\"title\":\"Ok\",\"text\":\"" + "x".repeat(1001) + "\"}"}) {
+            mockMvc.perform(put("/api/notes/" + id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mockMvc.perform(put("/api/notes/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "t".repeat(100) + "\",\"text\":\"" + "x".repeat(1000) + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].title").value("t".repeat(100)))
+                .andExpect(jsonPath("$[0].text").value("x".repeat(1000)));
+    }
+
+    @Test
+    void actualizarUnaNotaQueNoExisteDevuelve404() throws Exception {
+        mockMvc.perform(put("/api/notes/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Fantasma\",\"text\":\"a\"}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void actualizarSinTextoDejaLaNotaSinTexto() throws Exception {
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Con texto\",\"text\":\"Se va a borrar\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(respuesta, "$.id");
+
+        mockMvc.perform(put("/api/notes/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Solo título\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Solo título"))
+                .andExpect(jsonPath("$.text").value(nullValue()));
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].title").value("Solo título"))
+                .andExpect(jsonPath("$[0].text").value(nullValue()));
     }
 
     private void crear(String title, String text) throws Exception {

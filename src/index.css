@@ -82,14 +82,14 @@ form button:hover {
 }
 
 .board {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 24px;
+  position: relative;
 }
 
 /* Nota tipo post-it, color y tamaño fijos */
 .note {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
   box-sizing: border-box;
   width: 220px;
   height: 220px;
@@ -99,6 +99,11 @@ form button:hover {
   background: #d9c98a;
   border-radius: 2px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+
+.note.dragging {
+  cursor: grabbing;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55);
 }
 
 .note h2 {

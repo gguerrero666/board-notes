@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import Note from './Note.jsx'
 
 const NOTE_SIZE = 220
 const GAP = 24
@@ -31,9 +32,8 @@ function App() {
   const boardRef = useRef(null)
   const [drag, setDrag] = useState(null)
   const [topId, setTopId] = useState(null)
-  const [editing, setEditing] = useState(null)
+  const [editingId, setEditingId] = useState(null)
   const [editError, setEditError] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [positionError, setPositionError] = useState(false)
 
   useLayoutEffect(() => {
@@ -52,12 +52,6 @@ function App() {
       .then(setNotes)
       .catch(() => setLoadError(true))
   }, [])
-
-  function noteClass(id) {
-    return ['note', drag?.id === id && 'dragging', editing?.id === id && 'editing']
-      .filter(Boolean)
-      .join(' ')
-  }
 
   function positionOf(note, index) {
     return note.x == null || note.y == null
@@ -135,13 +129,11 @@ function App() {
     }
   }, [drag])
 
-  function saveEdit() {
-    if (saving || editing.title.trim() === '') return
-    setSaving(true)
-    fetch(`/api/notes/${editing.id}`, {
+  function updateNote(id, title, text) {
+    return fetch(`/api/notes/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: editing.title, text: editing.text }),
+      body: JSON.stringify({ title, text }),
     })
       .then((response) => {
         if (!response.ok) throw new Error('No se pudieron guardar los cambios')
@@ -153,11 +145,15 @@ function App() {
             n.id === updated.id ? { ...n, title: updated.title, text: updated.text } : n,
           ),
         )
-        setEditing(null)
+        setEditingId(null)
         setEditError(false)
       })
       .catch(() => setEditError(true))
-      .finally(() => setSaving(false))
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditError(false)
   }
 
   function addNote(event) {
@@ -208,67 +204,19 @@ function App() {
       </form>
       <section className="board" ref={boardRef} style={{ minHeight: boardHeight }}>
         {notes.map((note, index) => (
-          <article
+          <Note
             key={note.id}
-            className={noteClass(note.id)}
-            style={{ ...positionOf(note, index), zIndex: note.id === topId ? 1 : 0 }}
-          >
-            <div
-              className="note-handle"
-              aria-label="Mover nota"
-              onPointerDown={(event) => startDrag(event, note, index)}
-            />
-            {editing?.id === note.id ? (
-              <>
-                <input
-                  aria-label="Título de la nota"
-                  maxLength={100}
-                  value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                />
-                <textarea
-                  aria-label="Texto de la nota"
-                  maxLength={1000}
-                  value={editing.text}
-                  onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                />
-                <div className="note-actions">
-                  <button type="button" className="note-save" disabled={saving} onClick={saveEdit}>
-                    Guardar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setEditing(null)
-                      setEditError(false)
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2>{note.title}</h2>
-                <p>{note.text}</p>
-                <button
-                  type="button"
-                  className="note-edit"
-                  aria-label="Editar nota"
-                  disabled={editing !== null}
-                  onClick={() => setEditing({ id: note.id, title: note.title, text: note.text ?? '' })}
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                    />
-                  </svg>
-                </button>
-              </>
-            )}
-          </article>
+            note={note}
+            position={positionOf(note, index)}
+            isTop={note.id === topId}
+            isDragging={drag?.id === note.id}
+            isEditing={editingId === note.id}
+            canEdit={editingId === null}
+            onHandlePointerDown={(event) => startDrag(event, note, index)}
+            onStartEdit={() => setEditingId(note.id)}
+            onCancelEdit={cancelEdit}
+            onSave={(title, text) => updateNote(note.id, title, text)}
+          />
         ))}
       </section>
     </main>

@@ -32,7 +32,7 @@ function App() {
   const boardRef = useRef(null)
   const [drag, setDrag] = useState(null)
   const [topId, setTopId] = useState(null)
-  // Nota con una acción abierta (por ahora solo 'edit'); null si ninguna
+  // Nota con una acción abierta ('edit' o 'delete'); null si ninguna
   const [active, setActive] = useState(null)
   const [editError, setEditError] = useState(false)
   const [positionError, setPositionError] = useState(false)
@@ -165,7 +165,7 @@ function App() {
       .catch(() => setDeleteError(true))
   }
 
-  function cancelEdit() {
+  function cancelAction() {
     setActive(null)
     setEditError(false)
     setDeleteError(false)
@@ -228,12 +228,12 @@ function App() {
             isDragging={drag?.id === note.id}
             isEditing={active?.id === note.id && active.mode === 'edit'}
             isDeleting={active?.id === note.id && active.mode === 'delete'}
-            canEdit={active === null}
+            canAct={active === null}
             onHandlePointerDown={(event) => startDrag(event, note, index)}
             onStartEdit={() => setActive({ id: note.id, mode: 'edit' })}
             onStartDelete={() => setActive({ id: note.id, mode: 'delete' })}
             onConfirmDelete={() => deleteNote(note.id)}
-            onCancelEdit={cancelEdit}
+            onCancel={cancelAction}
             onSave={(title, text) => updateNote(note.id, title, text)}
           />
         ))}

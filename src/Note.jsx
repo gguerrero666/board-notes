@@ -10,16 +10,16 @@ function Note({
   isDragging,
   isEditing,
   isDeleting,
-  canEdit,
+  canAct,
   onHandlePointerDown,
   onStartEdit,
   onStartDelete,
   onConfirmDelete,
-  onCancelEdit,
+  onCancel,
   onSave,
 }) {
   const [draft, setDraft] = useState({ title: '', text: '' })
-  const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const className = ['note', isDragging && 'dragging', isEditing && 'editing', isDeleting && 'deleting']
     .filter(Boolean)
@@ -31,15 +31,15 @@ function Note({
   }
 
   function confirmDelete() {
-    if (saving) return
-    setSaving(true)
-    onConfirmDelete().finally(() => setSaving(false))
+    if (busy) return
+    setBusy(true)
+    onConfirmDelete().finally(() => setBusy(false))
   }
 
   function save() {
-    if (saving || draft.title.trim() === '') return
-    setSaving(true)
-    onSave(draft.title, draft.text).finally(() => setSaving(false))
+    if (busy || draft.title.trim() === '') return
+    setBusy(true)
+    onSave(draft.title, draft.text).finally(() => setBusy(false))
   }
 
   return (
@@ -60,10 +60,10 @@ function Note({
             onChange={(e) => setDraft({ ...draft, text: e.target.value })}
           />
           <div className="note-actions">
-            <button type="button" className="note-save" disabled={saving} onClick={save}>
+            <button type="button" className="note-save" disabled={busy} onClick={save}>
               Guardar
             </button>
-            <button type="button" disabled={saving} onClick={onCancelEdit}>
+            <button type="button" disabled={busy} onClick={onCancel}>
               Cancelar
             </button>
           </div>
@@ -72,10 +72,10 @@ function Note({
         <>
           <p className="note-confirm">¿Eliminar esta nota?</p>
           <div className="note-actions">
-            <button type="button" className="note-save" disabled={saving} onClick={confirmDelete}>
+            <button type="button" className="note-save" disabled={busy} onClick={confirmDelete}>
               Eliminar
             </button>
-            <button type="button" disabled={saving} onClick={onCancelEdit}>
+            <button type="button" disabled={busy} onClick={onCancel}>
               Cancelar
             </button>
           </div>
@@ -88,7 +88,7 @@ function Note({
             type="button"
             className="note-delete"
             aria-label="Eliminar nota"
-            disabled={!canEdit}
+            disabled={!canAct}
             onClick={onStartDelete}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -102,7 +102,7 @@ function Note({
             type="button"
             className="note-edit"
             aria-label="Editar nota"
-            disabled={!canEdit}
+            disabled={!canAct}
             onClick={startEdit}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">

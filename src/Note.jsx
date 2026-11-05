@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // Una nota del board: asa de arrastre, modo lectura y modo edición.
 // El borrador y el estado "guardando" son locales; qué nota se edita, el arrastre
@@ -10,6 +10,7 @@ function Note({
   isDragging,
   isEditing,
   isDeleting,
+  isNew,
   canAct,
   onHandlePointerDown,
   onStartEdit,
@@ -20,6 +21,12 @@ function Note({
 }) {
   const [draft, setDraft] = useState({ title: '', text: '' })
   const [busy, setBusy] = useState(false)
+  const ref = useRef(null)
+
+  // La nota en blanco, al aparecer, se desplaza hasta quedar a la vista
+  useEffect(() => {
+    if (isNew) ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [isNew])
 
   const className = ['note', isDragging && 'dragging', isEditing && 'editing', isDeleting && 'deleting']
     .filter(Boolean)
@@ -43,12 +50,13 @@ function Note({
   }
 
   return (
-    <article className={className} style={{ ...position, zIndex: isTop ? 1 : 0 }}>
+    <article ref={ref} className={className} style={{ ...position, zIndex: isTop ? 1 : 0 }}>
       <div className="note-handle" aria-label="Mover nota" onPointerDown={onHandlePointerDown} />
       {isEditing ? (
         <>
           <input
             aria-label="Título de la nota"
+            autoFocus={isNew}
             maxLength={100}
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}

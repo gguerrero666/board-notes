@@ -6,6 +6,7 @@ const GAP = 24
 const EDGE = 40 // distancia al borde de la ventana que activa el auto-desplazamiento
 const SCROLL_STEP = 20
 const MAX_POSITION = 100000 // igual que el límite del backend
+const DRAFT_ID = 'nueva' // marcador de la nota en blanco que aún no existe en el servidor
 
 function clamp(value) {
   return Math.min(MAX_POSITION, Math.max(0, value))
@@ -64,6 +65,7 @@ function App() {
   function startDrag(event, note, index) {
     if (event.button !== 0 || drag) return
     if (active?.id === note.id && active.mode === 'delete') return // confirmando un borrado
+    if (active?.id === DRAFT_ID) return // creando una nota: nada se arrastra hasta guardar o cancelar
     const { left, top } = positionOf(note, index)
     setTopId(note.id)
     setDrag({
@@ -165,10 +167,29 @@ function App() {
       .catch(() => setDeleteError(true))
   }
 
+  function createNote(title, text) {
+    return fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, text }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('No se pudo guardar la nota')
+        return response.json()
+      })
+      .then((created) => {
+        setNotes((current) => [...current, created])
+        setActive(null)
+        setSaveError(false)
+      })
+      .catch(() => setSaveError(true))
+  }
+
   function cancelAction() {
     setActive(null)
     setEditError(false)
     setDeleteError(false)
+    setSaveError(false)
   }
 
   function addNote(event) {
@@ -194,19 +215,25 @@ function App() {
       .finally(() => setSending(false))
   }
 
+  // La nota en blanco se muestra al final de la lista mientras se está creando
+  const shownNotes =
+    active?.id === DRAFT_ID ? [...notes, { id: DRAFT_ID, title: '', text: '' }] : notes
+
   // El board crece hacia abajo para contener hasta la nota más baja
   const boardHeight = Math.max(
     0,
-    ...notes.map((note, index) => positionOf(note, index).top + NOTE_SIZE + GAP),
+    ...shownNotes.map((note, index) => positionOf(note, index).top + NOTE_SIZE + GAP),
   )
 
   return (
     <main>
-      {loadError && <p role="alert">No se pudieron cargar las notas.</p>}
-      {saveError && <p role="alert">No se pudo guardar la nota.</p>}
-      {positionError && <p role="alert">No se pudo guardar la posición.</p>}
-      {editError && <p role="alert">No se pudieron guardar los cambios.</p>}
-      {deleteError && <p role="alert">No se pudo eliminar la nota.</p>}
+      <div className="alerts">
+        {loadError && <p role="alert">No se pudieron cargar las notas.</p>}
+        {saveError && <p role="alert">No se pudo guardar la nota.</p>}
+        {positionError && <p role="alert">No se pudo guardar la posición.</p>}
+        {editError && <p role="alert">No se pudieron guardar los cambios.</p>}
+        {deleteError && <p role="alert">No se pudo eliminar la nota.</p>}
+      </div>
       <form onSubmit={addNote}>
         <label>
           Título
@@ -219,7 +246,7 @@ function App() {
         <button type="submit" disabled={sending}>Agregar</button>
       </form>
       <section className="board" ref={boardRef} style={{ minHeight: boardHeight }}>
-        {notes.map((note, index) => (
+        {shownNotes.map((note, index) => (
           <Note
             key={note.id}
             note={note}
@@ -228,16 +255,31 @@ function App() {
             isDragging={drag?.id === note.id}
             isEditing={active?.id === note.id && active.mode === 'edit'}
             isDeleting={active?.id === note.id && active.mode === 'delete'}
+            isNew={note.id === DRAFT_ID}
             canAct={active === null}
             onHandlePointerDown={(event) => startDrag(event, note, index)}
             onStartEdit={() => setActive({ id: note.id, mode: 'edit' })}
             onStartDelete={() => setActive({ id: note.id, mode: 'delete' })}
             onConfirmDelete={() => deleteNote(note.id)}
             onCancel={cancelAction}
-            onSave={(title, text) => updateNote(note.id, title, text)}
+            onSave={(title, text) =>
+              note.id === DRAFT_ID ? createNote(title, text) : updateNote(note.id, title, text)
+            }
           />
         ))}
       </section>
+      <button
+        type="button"
+        className="add-note"
+        aria-label="Agregar nota"
+        disabled={active !== null}
+        onClick={() => {
+          setTopId(DRAFT_ID) // la nota en blanco queda encima de las demás
+          setActive({ id: DRAFT_ID, mode: 'edit' })
+        }}
+      >
+        +
+      </button>
     </main>
   )
 }

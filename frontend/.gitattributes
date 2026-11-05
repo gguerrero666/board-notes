@@ -1,0 +1,4 @@
+# Los archivos de Docker y nginx se usan en Linux: siempre con saltos de línea LF
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+nginx.conf text eol=lf

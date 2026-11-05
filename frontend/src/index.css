@@ -1,0 +1,245 @@
+:root {
+  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: #d8dce3;
+  background: #14171c;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  /* El board ocupa toda la ventana: x = 0 e y = 0 son los bordes de la pantalla.
+     Margen inferior amplio: deja desplazar la última fila por encima del botón + flotante */
+  padding: 0 0 120px;
+}
+
+/* Avisos de error: fijos arriba de la pantalla para que se vean donde esté la nota */
+.alerts {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  /* Los avisos no capturan clics: no deben tapar el asa de una nota pegada arriba */
+  pointer-events: none;
+}
+
+.alerts p {
+  margin: 0;
+  padding: 10px 16px;
+  color: #fff;
+  background: #8c2f2f;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.board {
+  position: relative;
+}
+
+/* Nota tipo post-it, color y tamaño fijos */
+.note {
+  position: absolute;
+  box-sizing: border-box;
+  width: 220px;
+  height: 220px;
+  padding: 16px;
+  overflow: hidden;
+  color: #2a2618;
+  background: #d9c98a;
+  border-radius: 2px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+
+.note.dragging {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* Asa: la única zona que arrastra la nota; bloquea el gesto del navegador solo aquí */
+.note-handle {
+  height: 32px;
+  margin: -16px -16px 8px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  background: rgba(0, 0, 0, 0.12)
+    radial-gradient(circle, rgba(42, 38, 24, 0.55) 1.5px, transparent 2px) center / 10px 10px repeat-x;
+}
+
+.note.dragging .note-handle {
+  cursor: grabbing;
+}
+
+.note-edit,
+.note-delete {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #2a2618;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.note-delete {
+  right: auto;
+  left: 6px;
+}
+
+.note-edit:disabled,
+.note-delete:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.note-edit:hover:not(:disabled),
+.note-delete:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* Confirmación de borrado dentro de la nota */
+.note.deleting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note.deleting .note-handle {
+  flex: none;
+  margin-bottom: 2px;
+}
+
+.note-confirm {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.note.deleting .note-save {
+  background: #8c2f2f;
+  border-color: #8c2f2f;
+}
+
+/* Modo edición dentro de la nota */
+.note.editing {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note.editing .note-handle {
+  flex: none;
+  margin-bottom: 2px;
+}
+
+.note.editing input,
+.note.editing textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #2a2618;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(42, 38, 24, 0.4);
+  border-radius: 3px;
+}
+
+.note.editing input {
+  flex: none;
+  font-weight: 600;
+}
+
+.note.editing textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
+
+.note.editing input:focus,
+.note.editing textarea:focus {
+  outline: 2px solid #3b5b8c;
+  outline-offset: 0;
+}
+
+.note-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.note-actions button {
+  flex: 1;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #2a2618;
+  background: transparent;
+  border: 1px solid rgba(42, 38, 24, 0.5);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.note-actions .note-save {
+  color: #fff;
+  background: #2a2618;
+  border-color: #2a2618;
+}
+
+.note h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.note p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Botón flotante para agregar una nota */
+.add-note {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 10;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  font: inherit;
+  font-size: 2rem;
+  line-height: 1;
+  color: #fff;
+  background: #3b5b8c;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.add-note:hover:not(:disabled) {
+  background: #4a6fa7;
+}
+
+.add-note:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

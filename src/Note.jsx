@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 function Note({
   note,
   position,
-  isTop,
+  zIndex,
   isDragging,
   isEditing,
   isDeleting,
@@ -50,7 +50,7 @@ function Note({
   }
 
   return (
-    <article ref={ref} className={className} style={{ ...position, zIndex: isTop ? 1 : 0 }}>
+    <article ref={ref} className={className} style={{ ...position, zIndex }}>
       <div className="note-handle" aria-label="Mover nota" onPointerDown={onHandlePointerDown} />
       {isEditing ? (
         <>

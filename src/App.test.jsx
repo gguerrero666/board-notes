@@ -1391,23 +1391,33 @@ test('mientras hay una nota en blanco, las demás notas no se pueden arrastrar',
 test('la nota en blanco queda por encima de la última nota que se movió', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
     if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
-    return { ok: true, json: async () => [{ id: 1, title: 'Movida', text: 'a', x: 100, y: 50 }] }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'Movida', text: 'a', x: 100, y: 50 },
+        { id: 2, title: 'Quieta', text: 'b', x: 400, y: 50 },
+      ],
+    }
   })
   const user = userEvent.setup()
 
   render(<App />)
   const movida = (await screen.findByText('Movida')).closest('article')
+  const quieta = screen.getByText('Quieta').closest('article')
+  const apilado = (nota) => Number(nota.style.zIndex)
+
   fireEvent.pointerDown(asaDe(movida), { pointerId: 1, clientX: 300, clientY: 200, button: 0 })
   fireEvent.pointerMove(window, { pointerId: 1, clientX: 320, clientY: 210 })
   fireEvent.pointerUp(window, { pointerId: 1, clientX: 320, clientY: 210 })
   // La última nota movida queda encima de las demás
-  expect(movida).toHaveStyle({ zIndex: '1' })
+  expect(apilado(movida)).toBeGreaterThan(apilado(quieta))
 
   await user.click(screen.getByRole('button', { name: 'Agregar nota' }))
-  const nueva = screen.getAllByRole('article')[1]
+  const nueva = screen.getAllByRole('article')[2]
 
-  expect(nueva).toHaveStyle({ zIndex: '1' })
-  expect(movida).toHaveStyle({ zIndex: '0' })
+  // La nota en blanco queda por encima de todas, incluida la última movida
+  expect(apilado(nueva)).toBeGreaterThan(apilado(movida))
+  expect(apilado(nueva)).toBeGreaterThan(apilado(quieta))
 })
 
 test('al abrir el board no hay formulario de título y texto ni botón Agregar, y sí está el botón +', async () => {
@@ -1483,4 +1493,122 @@ test('mientras una nota está en confirmación de borrado, las demás notas no s
   fireEvent.pointerMove(window, { pointerId: 2, clientX: 520, clientY: 110 })
   fireEvent.pointerUp(window, { pointerId: 2, clientX: 520, clientY: 110 })
   expect(otra).toHaveStyle({ left: '420px', top: '60px' })
+})
+
+test('las notas se apilan según el z guardado: la de mayor valor queda encima y las que no tienen valor quedan debajo', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { id: 1, title: 'A', text: 'a', x: 0, y: 0, z: 5 },
+      { id: 2, title: 'B', text: 'b', x: 0, y: 0, z: null },
+      { id: 3, title: 'C', text: 'c', x: 0, y: 0, z: 9 },
+      { id: 4, title: 'D', text: 'd', x: 0, y: 0, z: null },
+    ],
+  })
+
+  render(<App />)
+  await screen.findByText('A')
+  const apilado = (titulo) => Number(screen.getByText(titulo).closest('article').style.zIndex)
+
+  // La de mayor z (C) encima de A; A encima de las que no tienen valor
+  expect(apilado('C')).toBeGreaterThan(apilado('A'))
+  expect(apilado('A')).toBeGreaterThan(apilado('B'))
+  expect(apilado('A')).toBeGreaterThan(apilado('D'))
+  // Las dos sin valor comparten nivel, así que entre ellas manda el orden de la lista (la de después, encima)
+  expect(apilado('B')).toBe(apilado('D'))
+  const articulos = screen.getAllByRole('article').map((a) => within(a).getByRole('heading').textContent)
+  expect(articulos).toEqual(['A', 'B', 'C', 'D'])
+})
+
+test('al agarrar una nota, queda encima de las demás de inmediato, antes de soltarla', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    json: async () => [
+      { id: 1, title: 'Abajo', text: 'a', x: 0, y: 0, z: 2 },
+      { id: 2, title: 'Arriba', text: 'b', x: 0, y: 0, z: 9 },
+    ],
+  })
+
+  render(<App />)
+  const abajo = (await screen.findByText('Abajo')).closest('article')
+  const arriba = screen.getByText('Arriba').closest('article')
+  expect(Number(abajo.style.zIndex)).toBeLessThan(Number(arriba.style.zIndex))
+
+  fireEvent.pointerDown(asaDe(abajo), { pointerId: 1, clientX: 10, clientY: 10, button: 0 })
+
+  // Todavía sin soltar: ya está por encima de la que estaba arriba
+  expect(Number(abajo.style.zIndex)).toBeGreaterThan(Number(arriba.style.zIndex))
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 10, clientY: 10 })
+})
+
+test('al soltar la nota, el apilado pasa a ser el valor que devuelve el servidor y la respuesta no pisa su posición', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') {
+      // El servidor responde con su z y con una posición vieja (100, 50)
+      return { ok: true, json: async () => ({ id: 1, title: 'Soltada', text: 'a', x: 100, y: 50, z: 12 }) }
+    }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'Soltada', text: 'a', x: 100, y: 50, z: 2 },
+        { id: 2, title: 'Otra', text: 'b', x: 400, y: 50, z: 9 },
+      ],
+    }
+  })
+
+  render(<App />)
+  const soltada = (await screen.findByText('Soltada')).closest('article')
+  fireEvent.pointerDown(asaDe(soltada), { pointerId: 1, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 1, clientX: 350, clientY: 230 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 350, clientY: 230 })
+
+  await vi.waitFor(() => expect(soltada.style.zIndex).toBe('12'))
+  expect(soltada).toHaveStyle({ left: '150px', top: '80px' })
+})
+
+test('la nota en blanco se muestra encima de las demás y, al guardarla, la nota creada usa el apilado del servidor', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'POST') {
+      return { ok: true, json: async () => ({ id: 20, title: 'Creada', text: '', x: null, y: null, z: 15 }) }
+    }
+    return { ok: true, json: async () => [{ id: 1, title: 'Existente', text: 'a', x: 0, y: 0, z: 9 }] }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const existente = (await screen.findByText('Existente')).closest('article')
+  await user.click(screen.getByRole('button', { name: 'Agregar nota' }))
+
+  const nueva = screen.getAllByRole('article')[1]
+  // En blanco: por encima de la que tiene el apilado más alto (9)
+  expect(Number(nueva.style.zIndex)).toBeGreaterThan(Number(existente.style.zIndex))
+
+  await user.type(within(nueva).getByLabelText('Título de la nota'), 'Creada')
+  await user.click(within(nueva).getByRole('button', { name: 'Guardar' }))
+
+  const creada = (await screen.findByText('Creada')).closest('article')
+  expect(creada.style.zIndex).toBe('15')
+  expect(existente.style.zIndex).toBe('9')
+})
+
+test('si falla guardar la posición, la nota se queda encima en pantalla y se muestra el aviso', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: false, status: 500, json: async () => ({}) }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'Falla', text: 'a', x: 100, y: 50, z: 2 },
+        { id: 2, title: 'Otra', text: 'b', x: 400, y: 50, z: 9 },
+      ],
+    }
+  })
+
+  render(<App />)
+  const falla = (await screen.findByText('Falla')).closest('article')
+  const otra = screen.getByText('Otra').closest('article')
+  fireEvent.pointerDown(asaDe(falla), { pointerId: 1, clientX: 300, clientY: 200, button: 0 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 300, clientY: 200 })
+
+  expect(await screen.findByText('No se pudo guardar la posición.')).toBeInTheDocument()
+  expect(Number(falla.style.zIndex)).toBeGreaterThan(Number(otra.style.zIndex))
 })

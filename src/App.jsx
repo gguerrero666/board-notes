@@ -116,7 +116,15 @@ function App() {
       })
         .then((response) => {
           if (!response.ok) throw new Error('No se pudo guardar la posición')
+          return response.json()
+        })
+        .then((updated) => {
           setPositionError(false)
+          // Solo se toma el apilado: x e y son los locales (un arrastre en curso no se deshace)
+          if (typeof updated.z === 'number') {
+            setNotes((current) => current.map((n) => (n.id === drag.id ? { ...n, z: updated.z } : n)))
+            setTopId((current) => (current === drag.id ? null : current))
+          }
         })
         .catch(() => setPositionError(true))
     }
@@ -190,6 +198,13 @@ function App() {
     setSaveError(false)
   }
 
+  // Apilado: el valor guardado (z); las notas sin valor van al fondo, por orden de lista.
+  // La última agarrada queda por encima de todas mientras llega el valor del servidor.
+  const maxZ = Math.max(0, ...notes.map((n) => n.z ?? 0))
+  function stackOf(note) {
+    return note.id === topId ? maxZ + 1 : (note.z ?? 0)
+  }
+
   // La nota en blanco se muestra al final de la lista mientras se está creando
   const shownNotes =
     active?.id === DRAFT_ID ? [...notes, { id: DRAFT_ID, title: '', text: '' }] : notes
@@ -215,7 +230,7 @@ function App() {
             key={note.id}
             note={note}
             position={positionOf(note, index)}
-            isTop={note.id === topId}
+            zIndex={stackOf(note)}
             isDragging={drag?.id === note.id}
             isEditing={active?.id === note.id && active.mode === 'edit'}
             isDeleting={active?.id === note.id && active.mode === 'delete'}

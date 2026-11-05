@@ -1,0 +1,6 @@
+# Los scripts y archivos de Docker se ejecutan en Linux: siempre con saltos de línea LF
+gradlew text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+# El script de Windows sí necesita CRLF
+*.bat text eol=crlf

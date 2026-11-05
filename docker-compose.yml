@@ -1,0 +1,21 @@
+# Board de notas: backend (Spring Boot + H2) y frontend (nginx con el build de Vite)
+name: board
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    volumes:
+      - data:/app/data   # archivo de la base H2: aquí viven las notas
+    # No se publica ningún puerto: solo nginx lo alcanza, por la red interna
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"          # http://localhost/
+
+volumes:
+  data:

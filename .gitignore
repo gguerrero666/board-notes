@@ -1,0 +1,4 @@
+# Archivos de editor y registros sueltos en la raíz (cada proyecto tiene su propio .gitignore)
+.idea/
+.vscode/
+*.log

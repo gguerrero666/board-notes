@@ -41,12 +41,13 @@ public class NoteController {
 
     @PostMapping
     @Operation(summary = "Crear nota", description = "Crea una nota con título (obligatorio) y texto (opcional).")
-    @ApiResponse(responseCode = "201", description = "Nota creada, con su id")
+    @ApiResponse(responseCode = "201", description = "Nota creada, con su id y encima de todas las demás (apilado mayor)")
     @ApiResponse(responseCode = "400", description = "Título vacío o ausente", content = @Content)
     @ResponseStatus(HttpStatus.CREATED)
     public Note create(@Valid @RequestBody NewNoteRequest request) {
         Note note = new Note();
         note.updateContent(request.title(), request.text());
+        note.setZ(nextZ());
         return repository.save(note);
     }
 
@@ -75,8 +76,8 @@ public class NoteController {
     }
 
     @PatchMapping("/{id}/position")
-    @Operation(summary = "Mover nota", description = "Guarda la posición (x, y, en píxeles) de una nota. Solo cambia la posición: el título y el texto no se modifican. Ambas coordenadas son obligatorias y deben estar entre 0 y 100000.")
-    @ApiResponse(responseCode = "200", description = "Nota con su posición actualizada")
+    @Operation(summary = "Mover nota y subirla al frente", description = "Guarda la posición (x, y, en píxeles) de una nota y la sube al frente: su apilado (z) pasa a ser mayor que el de todas las demás. Se usa cada vez que se suelta una nota tras agarrarla, aunque no se haya movido. El título y el texto no se modifican. Ambas coordenadas son obligatorias y deben estar entre 0 y 100000.")
+    @ApiResponse(responseCode = "200", description = "Nota con su posición y su apilado actualizados")
     @ApiResponse(responseCode = "400", description = "Coordenada ausente, negativa o mayor a 100000", content = @Content)
     @ApiResponse(responseCode = "404", description = "No existe una nota con ese id", content = @Content)
     public Note updatePosition(@PathVariable Long id, @Valid @RequestBody PositionRequest request) {
@@ -84,6 +85,13 @@ public class NoteController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         note.setX(request.x());
         note.setY(request.y());
+        note.setZ(nextZ());
         return repository.save(note);
+    }
+
+    /** Apilado que deja la nota al frente: uno más que el mayor existente. */
+    private int nextZ() {
+        Integer max = repository.findMaxZ();
+        return (max == null ? 0 : max) + 1;
     }
 }

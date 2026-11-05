@@ -472,6 +472,164 @@ class NoteApiTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void cadaNotaCreadaQuedaConUnApiladoMayorQueElDeLasAnteriores() throws Exception {
+        String r1 = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Primera\",\"text\":\"a\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.z").isNumber())
+                .andReturn().getResponse().getContentAsString();
+        int z1 = JsonPath.read(r1, "$.z");
+        String r2 = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Segunda\",\"text\":\"b\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int z2 = JsonPath.read(r2, "$.z");
+        String r3 = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Tercera\",\"text\":\"c\"}"))
+                .andReturn().getResponse().getContentAsString();
+        int z3 = JsonPath.read(r3, "$.z");
+
+        org.junit.jupiter.api.Assertions.assertTrue(z2 > z1, "la segunda debe quedar encima de la primera");
+        org.junit.jupiter.api.Assertions.assertTrue(z3 > z2, "la tercera debe quedar encima de la segunda");
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].z").value(z1))
+                .andExpect(jsonPath("$[1].z").value(z2))
+                .andExpect(jsonPath("$[2].z").value(z3));
+    }
+
+    @Test
+    void actualizarLaPosicionSubeLaNotaAlFrenteYLasDemasConservanSuApilado() throws Exception {
+        int a = crear("A", "a");
+        crear("B", "b");
+        crear("C", "c");
+        String antes = mockMvc.perform(get("/api/notes")).andReturn().getResponse().getContentAsString();
+        int zB = JsonPath.read(antes, "$[1].z");
+        int zC = JsonPath.read(antes, "$[2].z");
+
+        String respuesta = mockMvc.perform(patch("/api/notes/" + a + "/position")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"x\":10,\"y\":20}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        int zA = JsonPath.read(respuesta, "$.z");
+
+        org.junit.jupiter.api.Assertions.assertTrue(zA > zB && zA > zC, "A debe quedar por encima de B y C");
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].z").value(zA))
+                .andExpect(jsonPath("$[1].z").value(zB))
+                .andExpect(jsonPath("$[2].z").value(zC));
+    }
+
+    @Test
+    void trasActualizarLaPosicionDeVariasNotasElListadoLasApilaEnEseOrden() throws Exception {
+        int a = crear("A", "a");
+        int b = crear("B", "b");
+        int c = crear("C", "c");
+        crear("D", "d");
+
+        for (int id : new int[] {a, c, b}) {
+            mockMvc.perform(patch("/api/notes/" + id + "/position")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"x\":5,\"y\":5}"))
+                    .andExpect(status().isOk());
+        }
+
+        String lista = mockMvc.perform(get("/api/notes")).andReturn().getResponse().getContentAsString();
+        int zA = zDe(lista, "A");
+        int zB = zDe(lista, "B");
+        int zC = zDe(lista, "C");
+        int zD = zDe(lista, "D");
+        // La última agarrada (B) arriba; luego C, luego A; D, que no se agarró, debajo de todas
+        org.junit.jupiter.api.Assertions.assertTrue(zD < zA, "D (sin agarrar) debajo de A");
+        org.junit.jupiter.api.Assertions.assertTrue(zA < zC, "A debajo de C");
+        org.junit.jupiter.api.Assertions.assertTrue(zC < zB, "C debajo de B");
+    }
+
+    @Test
+    void editarUnaNotaOEliminarOtraNoCambiaElApiladoDeLasDemas() throws Exception {
+        int a = crear("A", "a");
+        int b = crear("B", "b");
+        int c = crear("C", "c");
+        String antes = mockMvc.perform(get("/api/notes")).andReturn().getResponse().getContentAsString();
+        int zA = zDe(antes, "A");
+        int zC = zDe(antes, "C");
+
+        // Editar A no cambia su apilado ni el de las demás
+        mockMvc.perform(put("/api/notes/" + a)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"A editada\",\"text\":\"nuevo\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.z").value(zA));
+        // Eliminar B no cambia el apilado de A ni de C
+        mockMvc.perform(delete("/api/notes/" + b)).andExpect(status().isNoContent());
+
+        String despues = mockMvc.perform(get("/api/notes")).andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertEquals(zA, zDe(despues, "A editada"));
+        org.junit.jupiter.api.Assertions.assertEquals(zC, zDe(despues, "C"));
+    }
+
+    @Test
+    void unaNotaSinApiladoGuardadoSeListaConApiladoNuloYLasNuevasQuedanPorEncima() throws Exception {
+        // Una nota anterior a esta función: existe en la BD sin apilado
+        Note antigua = new Note();
+        antigua.updateContent("Antigua", "sin apilado");
+        repository.save(antigua);
+
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Antigua"))
+                .andExpect(jsonPath("$[0].z").value(nullValue()));
+
+        String respuesta = mockMvc.perform(post("/api/notes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Nueva\",\"text\":\"n\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.z").isNumber())
+                .andReturn().getResponse().getContentAsString();
+        int zNueva = JsonPath.read(respuesta, "$.z");
+        org.junit.jupiter.api.Assertions.assertTrue(zNueva >= 1, "la nueva tiene un apilado válido");
+
+        // La antigua sigue sin apilado y por debajo de la nueva
+        mockMvc.perform(get("/api/notes"))
+                .andExpect(jsonPath("$[0].z").value(nullValue()))
+                .andExpect(jsonPath("$[1].z").value(zNueva));
+    }
+
+    @Test
+    void unaPosicionInvalidaNoSubeLaNotaAlFrente() throws Exception {
+        int a = crear("A", "a");
+        crear("B", "b");
+        String antes = mockMvc.perform(get("/api/notes")).andReturn().getResponse().getContentAsString();
+        int zA = zDe(antes, "A");
+        int zB = zDe(antes, "B");
+
+        for (String cuerpo : new String[] {
+                "{\"x\":-1,\"y\":0}",
+                "{\"x\":0,\"y\":100001}",
+                "{\"y\":0}",
+                "{}"}) {
+            mockMvc.perform(patch("/api/notes/" + a + "/position")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo))
+                    .andExpect(status().isBadRequest());
+        }
+
+        String despues = mockMvc.perform(get("/api/notes")).andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertEquals(zA, zDe(despues, "A"));
+        org.junit.jupiter.api.Assertions.assertEquals(zB, zDe(despues, "B"));
+    }
+
+    /** Lee el apilado de la nota con ese título dentro del JSON del listado. */
+    private int zDe(String lista, String titulo) {
+        java.util.List<Integer> zs = JsonPath.read(lista, "$[?(@.title == '" + titulo + "')].z");
+        return zs.get(0);
+    }
+
     /** Crea una nota por la API y devuelve su id. */
     private int crear(String title, String text) throws Exception {
         String respuesta = mockMvc.perform(post("/api/notes")

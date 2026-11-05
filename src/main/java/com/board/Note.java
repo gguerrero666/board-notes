@@ -27,6 +27,8 @@ public class Note {
     private Integer x;
     @Schema(description = "Posición vertical en píxeles. Nula mientras la nota no se haya movido", example = "80", nullable = true)
     private Integer y;
+    @Schema(description = "Orden de apilado: a mayor valor, más al frente. Nulo mientras la nota no se haya agarrado ni creado con esta función", example = "3", nullable = true)
+    private Integer z;
 
     public Long getId() { return id; }
     public String getTitle() { return title; }
@@ -39,6 +41,8 @@ public class Note {
 
     public Integer getX() { return x; }
     public Integer getY() { return y; }
+    public Integer getZ() { return z; }
+    public void setZ(Integer z) { this.z = z; }
     public void setX(Integer x) { this.x = x; }
     public void setY(Integer y) { this.y = y; }
 }

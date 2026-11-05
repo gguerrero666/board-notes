@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from './App.jsx'
@@ -1611,4 +1611,88 @@ test('si falla guardar la posición, la nota se queda encima en pantalla y se mu
 
   expect(await screen.findByText('No se pudo guardar la posición.')).toBeInTheDocument()
   expect(Number(falla.style.zIndex)).toBeGreaterThan(Number(otra.style.zIndex))
+})
+
+test('si se vuelve a agarrar una nota con la respuesta anterior pendiente, esa respuesta no baja su apilado', async () => {
+  let resolverPrimera
+  let peticiones = 0
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => {
+    if (options?.method === 'PATCH') {
+      peticiones += 1
+      return new Promise((resolve) => {
+        // La primera suelta responde tarde, con el z que el servidor le dio (11)
+        resolverPrimera = () => resolve({ ok: true, json: async () => ({ id: 1, z: 11 }) })
+      })
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'A', text: 'a', x: 0, y: 0, z: 2 },
+        { id: 2, title: 'B', text: 'b', x: 400, y: 0, z: 9 },
+        { id: 3, title: 'C', text: 'c', x: 800, y: 0, z: 10 },
+      ],
+    })
+  })
+
+  render(<App />)
+  const a = (await screen.findByText('A')).closest('article')
+  const apilado = (nota) => Number(nota.style.zIndex)
+
+  // Primera suelta: la petición queda pendiente
+  fireEvent.pointerDown(asaDe(a), { pointerId: 1, clientX: 10, clientY: 10, button: 0 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 10, clientY: 10 })
+  expect(peticiones).toBe(1)
+  // La vuelve a agarrar antes de que llegue la respuesta
+  fireEvent.pointerDown(asaDe(a), { pointerId: 2, clientX: 10, clientY: 10, button: 0 })
+  const antes = apilado(a)
+
+  await act(async () => {
+    resolverPrimera()
+  })
+
+  expect(apilado(a)).toBeGreaterThanOrEqual(antes)
+  expect(apilado(a)).toBeGreaterThan(apilado(screen.getByText('C').closest('article')))
+  fireEvent.pointerUp(window, { pointerId: 2, clientX: 10, clientY: 10 })
+})
+
+test('si las respuestas de la posición llegan en desorden, gana el apilado más alto', async () => {
+  let resolverPrimera
+  let peticiones = 0
+  vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => {
+    if (options?.method === 'PATCH') {
+      peticiones += 1
+      if (peticiones === 1) {
+        // La primera responde tarde, con un z más bajo (12)
+        return new Promise((resolve) => {
+          resolverPrimera = () => resolve({ ok: true, json: async () => ({ id: 1, z: 12 }) })
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ id: 1, z: 13 }) })
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'A', text: 'a', x: 0, y: 0, z: 2 },
+        { id: 2, title: 'B', text: 'b', x: 400, y: 0, z: 9 },
+      ],
+    })
+  })
+
+  render(<App />)
+  const a = (await screen.findByText('A')).closest('article')
+
+  fireEvent.pointerDown(asaDe(a), { pointerId: 1, clientX: 10, clientY: 10, button: 0 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 10, clientY: 10 })
+  fireEvent.pointerDown(asaDe(a), { pointerId: 2, clientX: 10, clientY: 10, button: 0 })
+  await act(async () => {
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 10, clientY: 10 })
+  })
+  expect(a.style.zIndex).toBe('13')
+
+  // Llega tarde la respuesta antigua (z = 12): no debe bajarlo
+  await act(async () => {
+    resolverPrimera()
+  })
+
+  expect(a.style.zIndex).toBe('13')
 })

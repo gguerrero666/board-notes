@@ -12,6 +12,11 @@ function clamp(value) {
   return Math.min(MAX_POSITION, Math.max(0, value))
 }
 
+// Mayor z entre las notas (las que no lo tienen cuentan como 0)
+function maxStack(notes) {
+  return notes.reduce((max, n) => Math.max(max, n.z ?? 0), 0)
+}
+
 // Posición inicial de una nota sin posición guardada: cuadrícula por orden de lista,
 // con tantas columnas como quepan en el ancho del board (mínimo 1).
 function initialPosition(index, boardWidth) {
@@ -29,7 +34,6 @@ function App() {
   const [boardWidth, setBoardWidth] = useState(0)
   const boardRef = useRef(null)
   const [drag, setDrag] = useState(null)
-  const [topId, setTopId] = useState(null)
   // Nota con una acción abierta ('edit' o 'delete'); null si ninguna
   const [active, setActive] = useState(null)
   const [editError, setEditError] = useState(false)
@@ -65,7 +69,8 @@ function App() {
     if (active?.id === DRAFT_ID) return // creando una nota: nada se arrastra hasta guardar o cancelar
     if (active && active.id !== note.id) return // con una acción abierta solo puede moverse esa nota
     const { left, top } = positionOf(note, index)
-    setTopId(note.id)
+    // Sube al frente al instante con un z local; al soltar se adopta el del servidor
+    setNotes((current) => current.map((n) => (n.id === note.id ? { ...n, z: maxStack(current) + 1 } : n)))
     setDrag({
       id: note.id,
       pointerId: event.pointerId,
@@ -121,9 +126,11 @@ function App() {
         .then((updated) => {
           setPositionError(false)
           // Solo se toma el apilado: x e y son los locales (un arrastre en curso no se deshace)
+          // Se queda con el mayor: una respuesta antigua o tardía nunca baja el apilado local
           if (typeof updated.z === 'number') {
-            setNotes((current) => current.map((n) => (n.id === drag.id ? { ...n, z: updated.z } : n)))
-            setTopId((current) => (current === drag.id ? null : current))
+            setNotes((current) =>
+              current.map((n) => (n.id === drag.id ? { ...n, z: Math.max(n.z ?? 0, updated.z) } : n)),
+            )
           }
         })
         .catch(() => setPositionError(true))
@@ -198,12 +205,9 @@ function App() {
     setSaveError(false)
   }
 
-  // Apilado: el valor guardado (z); las notas sin valor van al fondo, por orden de lista.
-  // La última agarrada queda por encima de todas mientras llega el valor del servidor.
-  const maxZ = Math.max(0, ...notes.map((n) => n.z ?? 0))
-  function stackOf(note) {
-    return note.id === topId ? maxZ + 1 : (note.z ?? 0)
-  }
+  // Apilado: el z de cada nota; las que no tienen valor van al fondo, por orden de lista.
+  // La nota en blanco, que aún no tiene z, se muestra por encima de todas.
+  const stackOf = (note) => (note.id === DRAFT_ID ? maxStack(notes) + 1 : (note.z ?? 0))
 
   // La nota en blanco se muestra al final de la lista mientras se está creando
   const shownNotes =
@@ -252,10 +256,7 @@ function App() {
         className="add-note"
         aria-label="Agregar nota"
         disabled={active !== null}
-        onClick={() => {
-          setTopId(DRAFT_ID) // la nota en blanco queda encima de las demás
-          setActive({ id: DRAFT_ID, mode: 'edit' })
-        }}
+        onClick={() => setActive({ id: DRAFT_ID, mode: 'edit' })}
       >
         +
       </button>

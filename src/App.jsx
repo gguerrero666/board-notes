@@ -63,6 +63,7 @@ function App() {
     if (event.button !== 0 || drag) return
     if (active?.id === note.id && active.mode === 'delete') return // confirmando un borrado
     if (active?.id === DRAFT_ID) return // creando una nota: nada se arrastra hasta guardar o cancelar
+    if (active && active.id !== note.id) return // con una acción abierta solo puede moverse esa nota
     const { left, top } = positionOf(note, index)
     setTopId(note.id)
     setDrag({

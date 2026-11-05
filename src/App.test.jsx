@@ -1425,3 +1425,62 @@ test('al abrir el board no hay formulario de título y texto ni botón Agregar, 
   expect(screen.queryByRole('button', { name: 'Agregar' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Agregar nota' })).toBeEnabled()
 })
+
+test('mientras una nota se edita, las demás notas no se pueden arrastrar', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'En edición', text: 'a', x: 100, y: 50 },
+        { id: 2, title: 'Otra', text: 'b', x: 400, y: 50 },
+      ],
+    }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const enEdicion = (await screen.findByText('En edición')).closest('article')
+  const otra = screen.getByText('Otra').closest('article')
+  await user.click(within(enEdicion).getByRole('button', { name: 'Editar nota' }))
+
+  fireEvent.pointerDown(asaDe(otra), { pointerId: 1, clientX: 500, clientY: 100, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 1, clientX: 560, clientY: 160 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 560, clientY: 160 })
+
+  expect(otra).toHaveStyle({ left: '400px', top: '50px' })
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0)
+})
+
+test('mientras una nota está en confirmación de borrado, las demás notas no se pueden arrastrar', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    if (options?.method === 'PATCH') return { ok: true, json: async () => ({}) }
+    return {
+      ok: true,
+      json: async () => [
+        { id: 1, title: 'A eliminar', text: 'a', x: 100, y: 50 },
+        { id: 2, title: 'Otra', text: 'b', x: 400, y: 50 },
+      ],
+    }
+  })
+  const user = userEvent.setup()
+
+  render(<App />)
+  const aEliminar = (await screen.findByText('A eliminar')).closest('article')
+  const otra = screen.getByText('Otra').closest('article')
+  await user.click(within(aEliminar).getByRole('button', { name: 'Eliminar nota' }))
+
+  fireEvent.pointerDown(asaDe(otra), { pointerId: 1, clientX: 500, clientY: 100, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 1, clientX: 560, clientY: 160 })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: 560, clientY: 160 })
+
+  expect(otra).toHaveStyle({ left: '400px', top: '50px' })
+  expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0)
+
+  // Al cancelar, las demás vuelven a poder arrastrarse
+  await user.click(within(aEliminar).getByRole('button', { name: 'Cancelar' }))
+  fireEvent.pointerDown(asaDe(otra), { pointerId: 2, clientX: 500, clientY: 100, button: 0 })
+  fireEvent.pointerMove(window, { pointerId: 2, clientX: 520, clientY: 110 })
+  fireEvent.pointerUp(window, { pointerId: 2, clientX: 520, clientY: 110 })
+  expect(otra).toHaveStyle({ left: '420px', top: '60px' })
+})

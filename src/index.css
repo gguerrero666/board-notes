@@ -27,6 +27,7 @@ main {
   width: max-content;
   max-width: calc(100vw - 32px);
   transform: translateX(-50%);
+  /* Los avisos no capturan clics: no deben tapar el asa de una nota pegada arriba */
   pointer-events: none;
 }
 
@@ -37,7 +38,6 @@ main {
   background: #8c2f2f;
   border-radius: 6px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
-  pointer-events: auto;
 }
 
 .board {

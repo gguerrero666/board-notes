@@ -71,3 +71,31 @@ jobs:
 
       - name: Compilar
         run: npm run build
+
+  # Solo se ejecuta si pasan los tests: construye las imágenes y recorre la aplicación completa
+  docker:
+    name: Docker (imágenes y prueba de humo)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir las imágenes
+        run: docker compose build
+
+      - name: Arrancar la aplicación
+        run: docker compose up -d
+
+      # Crea, mueve, edita y elimina una nota a través de nginx (puerto 80)
+      - name: Prueba de humo
+        run: ./scripts/smoke-test.sh
+        env:
+          BASE_URL: http://localhost
+
+      - name: Mostrar los registros si algo falla
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Parar y limpiar
+        if: always()
+        run: docker compose down -v

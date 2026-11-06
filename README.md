@@ -1,5 +1,7 @@
 # Board de notas
 
+[![CI](https://github.com/gguerrero666/board-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/gguerrero666/board-notes/actions/workflows/ci.yml)
+
 Tablero personal para **agregar, editar, eliminar y acomodar notas libremente**: se arrastran a cualquier posición y el tablero se ve igual al volver a abrirlo, porque tanto la posición como el orden de apilado se guardan. Un solo usuario, sin login, interfaz solo en español. Funciona en escritorio y en el móvil.
 
 ## Qué se puede hacer
@@ -27,6 +29,10 @@ Tablero personal para **agregar, editar, eliminar y acomodar notas libremente**:
 ├── README.md
 ├── CLAUDE.md             Instrucciones y decisiones de diseño del proyecto
 ├── docker-compose.yml    Backend + frontend (nginx) en contenedores
+├── scripts/
+│   └── smoke-test.sh     Prueba de humo de la aplicación completa (la usa el CI)
+├── .github/workflows/
+│   └── ci.yml            Integración continua (GitHub Actions)
 ├── backend/              API REST (Spring Boot)
 │   ├── Dockerfile
 │   └── src/
@@ -54,7 +60,7 @@ Desde la raíz del repositorio:
 docker compose up -d --build   # construye y arranca; la primera vez descarga dependencias
 ```
 
-La aplicación queda en **http://localhost/** (puerto 80). Para pararla:
+La aplicación queda en **http://localhost/** (puerto 80; para otro puerto: `HTTP_PORT=8081 docker compose up -d`). Para pararla:
 
 ```bash
 docker compose down            # conserva las notas
@@ -102,6 +108,14 @@ npm run dev
 | `frontend$ npm test` | Tests del frontend con Vitest y Testing Library (69) |
 | `frontend$ npm run lint` | Análisis estático con oxlint |
 | `frontend$ npm run build` | Compilación de producción |
+
+### Integración continua
+
+En cada *push* y *pull request*, GitHub Actions (`.github/workflows/ci.yml`) ejecuta tres trabajos:
+
+1. **Backend:** los tests con Gradle y JDK 21.
+2. **Frontend:** `npm ci`, lint, tests y compilación con Node 22.
+3. **Docker** (si los dos anteriores pasan): construye las imágenes, levanta la aplicación completa y ejecuta `scripts/smoke-test.sh`, que recorre a través de nginx el ciclo crear, mover, editar, listar y eliminar una nota, comprueba las validaciones y que Swagger no queda expuesto. Puedes lanzarlo tú contra una aplicación en marcha con `BASE_URL=http://localhost ./scripts/smoke-test.sh` (crea y elimina una nota de prueba).
 
 ## API
 
